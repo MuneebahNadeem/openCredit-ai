@@ -69,9 +69,7 @@ class EvidenceItem(BaseModel):
 
     @field_validator("value")
     @classmethod
-    def value_not_blank(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("value must not be blank.")
+    def value_strip(cls, v: str) -> str:
         return v.strip()
 
     # ── Helpers ───────────────────────────────────────────────────────────

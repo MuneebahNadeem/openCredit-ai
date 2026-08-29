@@ -93,15 +93,37 @@
 
 ---
 
+## Step 5 — Sentiment Analysis (Person 2)
+
+**Status:** Complete
+
+**What was built:**
+- `ml/sentiment.py` — lexicon-based sentiment analysis for text evidence (reviews, social mentions, raw snippets).
+- `SentimentScore` dataclass: positive, negative, neutral proportions (0–1), compound score (-1 to +1), human-readable label.
+- `analyze_sentiment()` — tokenises text, looks up words in a curated lexicon (~65 words with weights -3 to +3), handles negation ("not good" flips polarity with 0.75x dampening), returns structured score.
+- `_classify_sentiment()` — uses polarity strength and balance (not just compound direction) to distinguish "mixed" from purely positive/negative text.
+- Compound formula: `(raw_pos - raw_neg) / 2.0` with clamping — preserves magnitude differences between strong and weak sentiment words.
+- `analyze_batch()` — analyse multiple texts at once.
+- `aggregate_sentiment()` — average multiple scores into a single summary.
+- `score_evidence_texts()` — extracts text from `EvidenceItem.raw_snippet` or `.value`, analyses each, and returns an aggregate score.
+
+**Files created:**
+- `ml/sentiment.py` (rewritten from empty)
+- `tests/ml/test_sentiment.py` (created)
+
+**Test result:** 40 / 40 PASSED — full suite 148 / 148 PASSED (0 warnings)
+
+---
+
 ## Next steps (pending approval)
 
-**Person 1 — Step 5a: agent/config.py and agent/state.py**
+**Person 1 — Step 6a: agent/config.py and agent/state.py**
 
 - `config.py`: investigation limits (max searches, max sources, max iterations), LLM model name, timeouts — all configurable via environment variables.
 - `state.py`: the mutable investigation state object — tracks what has been searched, what evidence has been collected, what features have been found, and when to stop.
 
-**Person 2 — Step 5b: ml/sentiment.py**
+**Person 2 — Step 6b: ml/credibility_scorer.py**
 
-- Sentiment analysis module for text-based evidence (reviews, social mentions).
-- Will produce sentiment scores that feed into the feature pipeline.
+- Aggregate evidence reliability into a credibility score.
+- Combine source reliability, evidence type, confidence, and corroboration into a single trustworthiness signal.
 

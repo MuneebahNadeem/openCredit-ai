@@ -76,7 +76,7 @@ _NEGATIVE_WORDS: dict[str, float] = {
     # -1  mild negative
     "bad": -1.0, "poor": -1.0, "slow": -1.0, "late": -1.0,
     "issue": -1.0, "problem": -1.0, "complaint": -1.0,
-    "disappointed": -1.0, "lacking": -1.0, "limited": -1.0,
+    "disappointed": -1.0, "disappointing": -1.0, "lacking": -1.0, "limited": -1.0,
     "overpriced": -1.0, "confusing": -1.0, "unclear": -1.0,
     "average": -1.0, "mediocre": -1.0,
     # -2  strong negative
@@ -112,17 +112,32 @@ def _tokenize(text: str) -> List[str]:
     """Lowercase and split text into word tokens."""
     return _TOKEN_RE.findall(text.lower())
 
-
-def _classify_compound(compound: float) -> str:
-    """Map a compound score to a human-readable label."""
-    if compound >= 0.25:
-        return "positive"
-    if compound <= -0.25:
-        return "negative"
-    if compound == 0.0:
+def _classify_sentiment(raw_pos: float, raw_neg: float) -> str:
+    """Classify sentiment using polarity strength and balance."""
+    if raw_pos == 0.0 and raw_neg == 0.0:
         return "neutral"
-    return "mixed"
 
+    if raw_pos > 0.0 and raw_neg > 0.0:
+        # A strong negative signal can dominate weaker positive wording.
+        if raw_neg > raw_pos:
+            return "negative"
+
+        # Otherwise, when both sides contain substantial sentiment,
+        # classify as mixed.
+        return "mixed"
+
+    if raw_pos > 0.0:
+        return "positive"
+
+    return "negative"
+    
+def _classify_compound(compound: float) -> str:
+    """Classify sentiment based on the compound score."""
+    if compound > 0.0:
+        return "positive"
+    if compound < 0.0:
+        return "negative"
+    return "neutral"
 
 # ── Core analysis ────────────────────────────────────────────────────────────
 
@@ -190,15 +205,16 @@ def analyze_sentiment(text: str) -> SentimentScore:
     neg_ratio = raw_neg / total if total > 0 else 0.0
     neu_ratio = 0.0  # when words matched, neutral ratio is zero
 
-    # Compound: -1.0 (all negative) to +1.0 (all positive).
-    compound = pos_ratio - neg_ratio
+    # Compound: 
+    compound = (raw_pos - raw_neg) / 2.0
+    compound = max(-1.0, min(1.0, compound))
 
     return SentimentScore(
         positive=pos_ratio,
         negative=neg_ratio,
         neutral=neu_ratio,
         compound=compound,
-        label=_classify_compound(compound),
+        label=_classify_sentiment(raw_pos, raw_neg),
     )
 
 
