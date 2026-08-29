@@ -140,6 +140,51 @@
 
 ---
 
+## Step 7b: Risk Engine (Person 2)
+**Date:** 2026-08-29
+**Status:** ✅ Complete — 29 tests passing
+
+### What was built
+- `ml/risk_engine.py` (227 lines) — central risk scoring engine
+- `tests/ml/test_risk_engine.py` (316 lines) — 29 tests
+
+### Module overview
+The risk engine orchestrates all ML components to produce the two main assessments:
+
+1. **Runs sub-modules** — calls `extract_features()`, `score_evidence_texts()`, `score_credibility()` on the `InvestigationResult`.
+2. **Trustworthiness scoring** (6 weighted factors): credibility (35%), sentiment (15%), positive signals (15%), risk signals inverted (15%), reliable evidence (10%), source quality (10%).
+3. **Business potential scoring** (5 weighted factors): positive signals (25%), sentiment (20%), credibility (15%), reliable evidence (15%), business features — audience/engagement/demand/growth/market (25%).
+4. **Level mapping** — scores are converted to AssessmentLevel enum values (HIGH ≥ 0.70, MODERATE ≥ 0.45, LOW < 0.45) compatible with `InvestigationResult`.
+5. **Explanation generation** — plain-English explanations for each assessment.
+6. **Output** — `RiskAssessment` dataclass containing two `AssessmentScore` objects (directly compatible with the result schema), plus `CredibilityScore`, `SentimentScore`, and raw features for transparency.
+7. **Edge cases** — no evidence returns `INSUFFICIENT_EVIDENCE` with `score=None`.
+
+### Test summary (29 tests)
+- RiskAssessment structure: 2 tests
+- Score-to-level mapping: 7 tests
+- Trustworthiness scoring: 3 tests (perfect, worst, bounded)
+- Business potential scoring: 3 tests (strong, no features, bounded)
+- Explanation generators: 4 tests
+- Integration tests: 10 tests (no evidence, Pydantic validity, good/risky business, trust vs potential separation, features/credibility/sentiment populated, level consistency, evidence count)
+
+### How to run tests
+```bash
+python -m pytest tests/ml/test_risk_engine.py -v
+# All ML tests:
+python -m pytest tests/ -v
+```
+
+### Running the risk engine
+```python
+from ml.risk_engine import assess_risk
+assessment = assess_risk(investigation_result)
+print(assessment.trustworthiness.level)      # e.g. "moderate"
+print(assessment.business_potential.score)   # e.g. 0.72
+print(assessment.trustworthiness.explanation)
+```
+
+---
+
 ## Next steps (pending approval)
 
 **Person 1 — Step 7a: agent/config.py and agent/state.py**
@@ -147,8 +192,7 @@
 - `config.py`: investigation limits (max searches, max sources, max iterations), LLM model name, timeouts — all configurable via environment variables.
 - `state.py`: the mutable investigation state object — tracks what has been searched, what evidence has been collected, what features have been found, and when to stop.
 
-**Person 2 — Step 7b: ml/risk_engine.py**
+**Person 2 — Step 8b: ml/assessment.py**
 
-- Core risk scoring engine that combines feature extractor, sentiment, and credibility scores.
-- Produces the two main assessments: trustworthiness and business potential.
+- Final assessment wrapper that takes a `RiskAssessment` and produces the complete `InvestigationResult` with all fields populated — ready for Person 3's backend.
 
