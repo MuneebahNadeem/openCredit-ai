@@ -185,6 +185,51 @@ print(assessment.trustworthiness.explanation)
 
 ---
 
+## Step 8b: Assessment Wrapper (Person 2)
+**Date:** 2026-08-29
+**Status:** ✅ Complete — 34 tests passing
+
+### What was built
+- `ml/assessment.py` (179 lines) — final assessment wrapper
+- `tests/ml/test_assessment.py` (320 lines) — 34 tests
+
+### Module overview
+The assessment wrapper is the single entry point for Person 3's backend:
+
+1. **`generate_assessment(result)`** — takes a Person 1 `InvestigationResult` (with evidence, features, signals), runs the risk engine, generates a justification, and returns a new `InvestigationResult` with ML-generated assessments overlaid. All original data is preserved via `model_copy()`.
+2. **`generate_justification(result, assessment)`** — produces an evidence-based ~2-line justification combining trustworthiness level, business potential level, and evidence counts. Never speculative.
+3. **`generate_recommendation(assessment)`** — produces one of 5 recommendation strings based on the two assessment levels:
+   - `"approve"` — both HIGH
+   - `"approve_with_conditions"` — at least one MODERATE, none LOW
+   - `"decline"` — trustworthiness LOW
+   - `"further_review"` — potential LOW but trust adequate
+   - `"insufficient_data"` — either INSUFFICIENT_EVIDENCE
+
+### Test summary (34 tests)
+- Justification generation: 7 tests (high, moderate, low, insufficient, format, evidence count)
+- Recommendation logic: 11 tests (all 5 outcomes, edge cases)
+- Integration tests: 16 tests (result type, assessments populated, justification generated, original data preserved — evidence/features/signals/business_input/status/sources, no evidence case, scores bounded, level-score consistency, JSON serialisation, summary method)
+
+### How to run tests
+```bash
+python -m pytest tests/ml/test_assessment.py -v
+# All ML tests:
+python -m pytest tests/ml/ -v
+```
+
+### Using the assessment module
+```python
+from ml.assessment import generate_assessment
+
+result = agent.invest(business_input)    # Person 1's output
+enriched = generate_assessment(result)   # Person 2's ML overlay
+print(enriched.trustworthiness.level)    # "moderate"
+print(enriched.justification)            # evidence-based summary
+json_output = enriched.model_dump_json() # ready for backend
+```
+
+---
+
 ## Next steps (pending approval)
 
 **Person 1 — Step 7a: agent/config.py and agent/state.py**
@@ -192,7 +237,5 @@ print(assessment.trustworthiness.explanation)
 - `config.py`: investigation limits (max searches, max sources, max iterations), LLM model name, timeouts — all configurable via environment variables.
 - `state.py`: the mutable investigation state object — tracks what has been searched, what evidence has been collected, what features have been found, and when to stop.
 
-**Person 2 — Step 8b: ml/assessment.py**
-
-- Final assessment wrapper that takes a `RiskAssessment` and produces the complete `InvestigationResult` with all fields populated — ready for Person 3's backend.
+---
 
