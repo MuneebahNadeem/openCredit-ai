@@ -1,142 +1,372 @@
 # OpenCredit AI
 
-> **OpenCredit AI is an AI-powered alternative-data business assessment platform that helps lending organizations evaluate small and informal businesses that may lack complete traditional financial records.**
+OpenCredit AI is an AI-powered business investigation and decision-support system designed to help evaluate whether a business or brand is trustworthy and potentially beneficial to work with or invest in.
 
-The five-day MVP focuses on an **agentic public-information investigation workflow**. Given a business name and available public identifiers—such as a website, social media URL, marketplace URL, or location—the system searches permitted public sources, extracts relevant evidence, cross-checks business identity and activity, analyzes reputation and customer signals, identifies missing information, and generates an explainable assessment.
+The system combines **user-provided business information, publicly available internet data, AI-based investigation, feature discovery, evidence analysis, and machine learning** to produce an explainable assessment.
 
-OpenCredit AI is designed for **banks, microfinance institutions, fintech lenders, and other lending organizations**. It is a **decision-support system, not an autonomous loan approval system**; the final credit decision remains the responsibility of the lender or loan officer.
-
----
-
-## Five-Day Development Plan
-
-### DAY 1 — Foundation
-
-**Goal:** Build the complete application skeleton and establish the core workflow.
-
-**Person 1**
-- Set up the LLM and agent architecture
-- Integrate web search and webpage extraction tools
-- Build the initial investigation workflow
-
-**Person 2**
-- Finalize assessment features and requirements
-- Obtain and prepare the dataset
-- Create the baseline ML pipeline
-
-**Person 3**
-- Set up React, FastAPI, and PostgreSQL
-- Build the business input form
-- Create the initial API and application skeleton
-
-**End-of-day target:**
-
-`Frontend → Backend → Agent → Dummy Response`
+The system does not rely only on a fixed set of features. It has predefined business signals, while the investigation agent can also discover additional relevant signals based on the specific business being investigated.
 
 ---
 
-### DAY 2 — Intelligence
+## Project Workflow
 
-**Goal:** Enable the system to investigate businesses and generate an initial assessment.
+```text
+User Business Information
+          │
+          ▼
+┌─────────────────────────┐
+│   Investigation Agent   │
+│        Person 1         │
+└────────────┬────────────┘
+             │
+             ▼
+     Search Public Web
+             │
+             ▼
+      Extract Information
+             │
+             ▼
+     Discover New Features
+             │
+             ▼
+       Cross-Check Data
+             │
+             ▼
+      Business Evidence
+             │
+             ▼
+┌─────────────────────────┐
+│   ML / Risk Analysis    │
+│        Person 2         │
+└────────────┬────────────┘
+             │
+             ▼
+     Risk / Feature Analysis
+             │
+             ▼
+┌─────────────────────────┐
+│   Backend & Frontend    │
+│        Person 3         │
+└────────────┬────────────┘
+             │
+             ▼
+       Final Assessment
+             │
+      ┌──────┴──────┐
+      ▼             ▼
+Trustworthiness   Business /
+Assessment        Investment
+                  Potential
+```
 
-**Person 1**
-- Implement web search and source extraction
-- Extract business identity information
-- Classify sources
-- Store collected evidence
+### Overall Process
 
-**Person 2**
-- Implement sentiment analysis
-- Extract relevant features
-- Build the initial ML model
-- Generate preliminary scoring
-
-**Person 3**
-- Build the dashboard and results page
-- Add loading states
-- Create evidence cards
-- Integrate frontend with APIs
-
-**End-of-day target:**
-
-`Business → Web Search → Evidence → Basic Score → Dashboard`
-
----
-
-### DAY 3 — Integration
-
-**Goal:** Connect all components into a complete end-to-end prototype.
-
-**Person 1**
-- Complete the `Search → Extraction → Cross-check → Evidence` pipeline
-
-**Person 2**
-- Complete the `Evidence → Features → ML → Credibility/Risk` pipeline
-
-**Person 3**
-- Connect the complete system:
-
-`React → FastAPI → Agent → ML → Database → React`
-
-**End-of-day target:**
-
-A fully functional end-to-end prototype, even if the UI is not yet polished.
-
----
-
-### DAY 4 — Polish & Explainability
-
-**Goal:** Improve reliability, transparency, and user experience.
-
-**Person 1**
-- Improve agent reasoning
-- Strengthen source verification
-- Detect missing information
-- Improve evidence confidence scoring
-
-**Person 2**
-- Add SHAP explainability
-- Evaluate model performance and metrics
-- Identify feature importance
-- Generate understandable risk explanations
-
-**Person 3**
-- Improve the UI and overall user experience
-- Add charts and visualizations
-- Build an evidence timeline
-- Create the report page
-- Improve error handling
-
-**End-of-day target:**
-
-An explainable and presentation-ready prototype.
+1. The user provides whatever business information is available.
+2. The Investigation Agent uses this information as a starting point.
+3. The agent searches publicly available sources on the internet.
+4. Relevant business information is extracted and structured.
+5. The agent identifies predefined and business-specific features.
+6. If additional information is needed, the agent performs further targeted investigation.
+7. Information is cross-checked across multiple sources.
+8. The resulting evidence is passed to the ML/risk assessment component.
+9. The system evaluates trustworthiness and potential business/investment benefit.
+10. The final result contains scores/assessment, positive signals, risks, missing information, evidence, sources, and a concise justification.
 
 ---
 
-### DAY 5 — Deployment & Demo
+# Team Responsibilities
 
-#### Morning
-- Fix bugs
-- Test the complete workflow
-- Clean up the UI
-- Test multiple business cases
+## Person 1 — Maheen Fatima
 
-#### Afternoon
-- Dockerize the application
-- Deploy the MVP
-- Test the deployed version
-- Prepare screenshots and presentation materials
+### Business Investigation Agent
 
-#### Final Hours
-- Stop adding new features
-- Prepare the live demo
-- Finalize the presentation
-- Explain the system architecture
-- Document limitations
-- Define the future roadmap
+Person 1 is responsible for developing the **AI-powered business investigation and evidence-gathering agent**.
+
+### Responsibilities
+
+* Receive and validate business information.
+* Search publicly available internet sources.
+* Find relevant websites, social profiles, marketplaces, reviews, and other public sources.
+* Extract useful business information from discovered sources.
+* Identify and verify the business across different sources.
+* Cross-check information between sources.
+* Track the source and confidence of important evidence.
+* Identify positive business signals.
+* Identify potential risk signals.
+* Identify missing information.
+* Use predefined business features as an initial investigation checklist.
+* Dynamically discover additional relevant features based on the specific business.
+* Investigate discovered features through additional targeted searches.
+* Investigate signals such as:
+
+  * Social media presence
+  * Followers and engagement
+  * Reviews and sentiment
+  * Product activity
+  * Product demand signals
+  * Marketplace presence
+  * Business age
+  * Public mentions
+  * Website activity
+  * Customer interest
+  * Other business-specific signals
+* Prevent duplicate and unnecessary searches.
+* Stop investigation when sufficient evidence has been collected or investigation limits are reached.
+* Produce structured `BusinessEvidence` for the ML component.
+* Provide evidence-backed reasoning without presenting unsupported assumptions as facts.
+
+### Main Output
+
+```text
+BusinessEvidence
+├── Business Identity
+├── Online Presence
+├── Products / Services
+├── Reviews
+├── Discovered Features
+├── Positive Signals
+├── Risk Signals
+├── Missing Information
+└── Sources / Evidence
+```
 
 ---
 
-## MVP Principle
+## Person 2 — Esha Ashfaq
 
-> **Build the full workflow first. Polish second. Explain everything clearly.**
+### ML / Risk Assessment
+
+Person 2 is responsible for the **machine learning and risk assessment component**.
+
+### Responsibilities
+
+* Receive structured business evidence from Person 1.
+* Design and prepare ML features.
+* Perform data preprocessing and feature engineering.
+* Prepare and evaluate relevant datasets.
+* Train and compare appropriate ML models.
+* Generate business/risk assessments.
+* Convert relevant agent-derived evidence into usable model features.
+* Evaluate model performance.
+* Implement model explainability where appropriate.
+* Use SHAP or similar techniques to explain important model features.
+* Produce interpretable risk/credit-related outputs.
+
+### Main Input
+
+```text
+BusinessEvidence
+        ↓
+Feature Engineering
+        ↓
+ML Model
+        ↓
+Risk / Business Assessment
+```
+
+Person 2 should not duplicate the web investigation performed by Person 1.
+
+---
+
+## Person 3 — Muneebah Nadeem
+
+### Backend, Frontend & System Integration
+
+Person 3 is responsible for connecting the system components and building the user-facing application.
+
+### Backend Responsibilities
+
+* Develop the backend API.
+* Connect the frontend with the backend.
+* Connect the backend with the Investigation Agent.
+* Connect the backend with the ML component.
+* Handle request/response flow.
+* Integrate database functionality where required.
+* Manage communication between system components.
+* Ensure the agreed schemas/interfaces are followed.
+
+### Frontend Responsibilities
+
+Build the interface for:
+
+* Business information input
+* Investigation status/results
+* Trustworthiness assessment
+* Business/investment potential
+* Positive signals
+* Risk signals
+* Discovered features
+* Missing information
+* Evidence and sources
+* Final two-line justification
+
+### Main Role
+
+```text
+Frontend
+    ↓
+Backend API
+    ↓
+Investigation Agent
+    ↓
+Business Evidence
+    ↓
+ML / Risk Analysis
+    ↓
+Backend
+    ↓
+Frontend Result
+```
+
+---
+
+# Agent Design
+
+The Investigation Agent is designed to be **adaptive rather than completely rule-based**.
+
+It begins with known features but can discover additional features that may help evaluate a particular business.
+
+For example:
+
+```text
+Business
+   ↓
+Initial Investigation
+   ↓
+Large social media presence discovered
+   ↓
+Agent identifies audience size as relevant
+   ↓
+Investigates followers + engagement
+   ↓
+Product activity discovered
+   ↓
+Agent investigates product demand signals
+   ↓
+Customer reviews discovered
+   ↓
+Agent investigates reputation
+   ↓
+Evidence is cross-checked
+```
+
+Different businesses may result in different investigation paths.
+
+The agent should therefore answer:
+
+> **What evidence do I have, what does it indicate, and what additional information would help me make a better assessment?**
+
+---
+
+# Evidence Principles
+
+The system distinguishes between:
+
+### Verified Fact
+
+Information directly supported by a source.
+
+### Corroborated Fact
+
+Information supported by multiple independent sources.
+
+### Inference
+
+A conclusion drawn from available evidence.
+
+### Unknown
+
+Information that could not be sufficiently verified.
+
+The agent must not turn an inference into a verified fact.
+
+For example:
+
+```text
+Observed:
+250,000 social media followers
+
+Possible inference:
+Large online audience
+
+Not automatically valid:
+The business is trustworthy because it has 250,000 followers.
+```
+
+Similarly, missing information should not automatically be interpreted as negative evidence.
+
+When evidence is insufficient, the system should be able to report:
+
+```text
+Insufficient Evidence
+```
+
+---
+
+# Final Assessment
+
+The system evaluates two separate dimensions:
+
+## Trustworthiness
+
+Considers evidence such as:
+
+* Business identity consistency
+* Public presence
+* Source reliability
+* Customer reputation
+* Reviews
+* Complaints
+* Business history
+* Transparency
+* Consistency across sources
+
+## Business / Investment Potential
+
+Considers evidence such as:
+
+* Market interest
+* Product demand signals
+* Customer activity
+* Business activity
+* Audience
+* Growth signals
+* Market presence
+* Product/service attractiveness
+* User-provided business information
+* Other relevant discovered signals
+
+The system provides **decision support**, not a guaranteed investment or lending decision.
+
+---
+
+# Repository Structure
+
+```text
+opencredit-ai/
+├── frontend/
+├── backend/
+├── ml/
+├── agent/
+├── data/
+├── documents/
+├── tests/
+├── docker/
+└── README.md
+```
+
+### Component Ownership
+
+```text
+frontend/  → Person 3
+backend/   → Person 3
+ml/        → Person 2
+agent/     → Person 1
+data/      → Shared
+documents/ → Shared
+tests/     → Shared
+docker/    → Shared
+README.md  → Shared
+```
+
+The top-level repository structure should remain stable unless a technical change is proposed and agreed upon by the team.
