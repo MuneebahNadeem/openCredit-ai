@@ -132,7 +132,7 @@ BusinessEvidence
 
 ---
 
-## Person 2 — Esha Ashfaq
+## Person 2 — Muneebah Nadeem
 
 ### ML / Risk Assessment
 
@@ -168,7 +168,7 @@ Person 2 should not duplicate the web investigation performed by Person 1.
 
 ---
 
-## Person 3 — Muneebah Nadeem
+## Person 3 — Esha Ashfaq
 
 ### Backend, Frontend & System Integration
 

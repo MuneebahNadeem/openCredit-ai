@@ -69,12 +69,39 @@
 
 ---
 
-## Next step (pending approval)
+## Step 4 — ML Feature Extractor (Person 2)
 
-**Step 4 — agent/config.py and agent/state.py**
+**Status:** Complete
 
-- `config.py`: investigation limits (max searches, max sources, max iterations), LLM model name, timeouts — all configurable via environment variables so different environments can tune behaviour without code changes.
-- `state.py`: the mutable investigation state object the agent updates as it works — tracks what has been searched, what evidence has been collected, what features have been found, and when to stop.
+**What was built:**
+- `ml/feature_extractor.py` — converts `InvestigationResult` (from Person 1) into a flat `dict[str, float]` for tabular ML models.
+- Six sub-extractors, each returning a `FeatureDict`:
+  - `extract_evidence_counts()` — total/reliable counts, reliable ratio, EvidenceType breakdown (7 features)
+  - `extract_confidence_stats()` — mean, min, max, std deviation of confidence scores (4 features)
+  - `extract_signal_ratios()` — positive/risk signal counts and ratios, missing info count (6 features)
+  - `extract_source_reliability()` — normalised HIGH/MEDIUM/LOW/UNKNOWN distribution (4 features)
+  - `extract_feature_categories()` — total/found/searched features, count per FeatureCategory (16 features)
+  - `extract_investigation_meta()` — searches, sources, one-hot InvestigationStatus flags (7 features)
+- `extract_features()` — main entry point merging all sub-extractors. **Total: 44 numeric features.**
 
-This is the last piece of scaffolding before writing any live agent logic.
+**Files created:**
+- `ml/feature_extractor.py` (rewritten from empty)
+- `tests/ml/__init__.py` (created)
+- `tests/ml/test_feature_extractor.py` (created)
+
+**Test result:** 44 / 44 PASSED — full suite 108 / 108 PASSED (0 warnings)
+
+---
+
+## Next steps (pending approval)
+
+**Person 1 — Step 5a: agent/config.py and agent/state.py**
+
+- `config.py`: investigation limits (max searches, max sources, max iterations), LLM model name, timeouts — all configurable via environment variables.
+- `state.py`: the mutable investigation state object — tracks what has been searched, what evidence has been collected, what features have been found, and when to stop.
+
+**Person 2 — Step 5b: ml/sentiment.py**
+
+- Sentiment analysis module for text-based evidence (reviews, social mentions).
+- Will produce sentiment scores that feed into the feature pipeline.
 
