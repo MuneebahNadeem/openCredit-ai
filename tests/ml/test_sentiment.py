@@ -292,18 +292,21 @@ class TestScoreEvidenceTexts:
 
     def test_skips_empty_text(self):
         items = [
-            _make_evidence(value=""),
+            _make_evidence(value="valid value", raw_snippet=""),
             _make_evidence(value="great product"),
         ]
         s = score_evidence_texts(items)
-        # Empty value should be skipped; only "great product" counts.
+
+        # Empty raw_snippet should be skipped; "great product" counts.
         assert s.compound > 0.0
 
     def test_all_empty_texts(self):
         items = [
-            _make_evidence(value=""),
-            _make_evidence(value="  "),
+            _make_evidence(value="valid value", raw_snippet=""),
+            _make_evidence(value="valid value", raw_snippet="  "),
         ]
         s = score_evidence_texts(items)
+
         assert s.label == "neutral"
         assert s.compound == 0.0
+

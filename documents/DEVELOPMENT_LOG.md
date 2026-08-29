@@ -115,15 +115,40 @@
 
 ---
 
+## Step 6 — Credibility Scorer (Person 2)
+
+**Status:** Complete
+
+**What was built:**
+- `ml/credibility_scorer.py` — evaluates the quality and reliability of an investigation's evidence.
+- `CredibilityScore` dataclass: 7 sub-scores + weighted overall score + level ("high" / "moderate" / "low" / "insufficient_evidence").
+- Sub-scorers (each 0.0–1.0):
+  - `_score_source_reliability()` — weighted avg of HIGH/MEDIUM/LOW/UNKNOWN source reliability
+  - `_score_evidence_quality()` — weighted avg of CORROBORATED/OBSERVED/INFERENCE evidence types
+  - `_score_confidence()` — average agent confidence across evidence
+  - `_score_reliable_ratio()` — proportion passing `is_reliable()`
+  - `_score_source_diversity()` — unique named sources / total sources
+  - `_score_corroboration()` — proportion of field_names backed by 2+ distinct sources
+  - `_score_evidence_depth()` — sqrt-curve measuring evidence sufficiency (threshold: 10 items)
+- `score_credibility()` — main entry point, weighted combination with level classification.
+
+**Files created:**
+- `ml/credibility_scorer.py` (rewritten from empty)
+- `tests/ml/test_credibility_scorer.py` (created)
+
+**Test result:** 47 / 47 PASSED — full suite 195 / 195 PASSED (0 warnings)
+
+---
+
 ## Next steps (pending approval)
 
-**Person 1 — Step 6a: agent/config.py and agent/state.py**
+**Person 1 — Step 7a: agent/config.py and agent/state.py**
 
 - `config.py`: investigation limits (max searches, max sources, max iterations), LLM model name, timeouts — all configurable via environment variables.
 - `state.py`: the mutable investigation state object — tracks what has been searched, what evidence has been collected, what features have been found, and when to stop.
 
-**Person 2 — Step 6b: ml/credibility_scorer.py**
+**Person 2 — Step 7b: ml/risk_engine.py**
 
-- Aggregate evidence reliability into a credibility score.
-- Combine source reliability, evidence type, confidence, and corroboration into a single trustworthiness signal.
+- Core risk scoring engine that combines feature extractor, sentiment, and credibility scores.
+- Produces the two main assessments: trustworthiness and business potential.
 
