@@ -230,12 +230,268 @@ json_output = enriched.model_dump_json() # ready for backend
 
 ---
 
-## Next steps (pending approval)
+## Step 7a: agent/config.py and agent/state.py (Person 1)
+**Date:** 2026-08-30
+**Status:** ✅ Complete — 47 tests passing
 
-**Person 1 — Step 7a: agent/config.py and agent/state.py**
+### What was built
+- `agent/config.py` — `InvestigationConfig` dataclass with all runtime limits configurable via env vars
+- `agent/state.py` — `InvestigationState` mutable dataclass tracking everything during one investigation run
+- `tests/agent/test_config.py` — 25 tests (defaults, env overrides, validation, summary)
+- `tests/agent/test_state.py` — 47 tests (search recording, source dedup, evidence/feature accumulation, stop conditions, status derivation, build_result)
 
-- `config.py`: investigation limits (max searches, max sources, max iterations), LLM model name, timeouts — all configurable via environment variables.
-- `state.py`: the mutable investigation state object — tracks what has been searched, what evidence has been collected, what features have been found, and when to stop.
+### Module overview
+
+**`agent/config.py`**
+`InvestigationConfig` dataclass with:
+- Investigation limits: `max_searches=15`, `max_sources=20`, `max_iterations=30`, `max_evidence_items=50`, `min_evidence_to_conclude=3`
+- HTTP: `request_timeout_s=10.0`, `user_agent`, `respect_robots_txt`
+- LLM: `llm_model="gpt-4o-mini"`, `llm_temperature=0.2`, `llm_max_tokens=2048`
+- Search: `search_engine="duckduckgo"`, `parse_self_reported=True`
+- All values overridable via env vars (`AGENT_MAX_SEARCHES`, `AGENT_LLM_MODEL`, etc.)
+- `__post_init__` validates ranges; `summary()` for logging
+
+**`agent/state.py`**
+`InvestigationState` dataclass with:
+- `record_search(query) → bool` — deduplicates by normalised lowercase; returns False if already searched
+- `add_source(url) → bool` — deduplicates by normalised URL; returns False if already visited
+- `add_evidence()`, `add_evidence_batch()`, `add_feature()` (replaces by name), `add_positive_signal()`, `add_risk_signal()`, `add_missing_info()` (dedup)
+- `should_stop() → bool` — checks all 4 limits, sets `stop_reason`
+- `has_sufficient_evidence()` — `reliable_evidence_count >= min_evidence_to_conclude`
+- `_derive_status()` — maps stop_reason to `InvestigationStatus` enum
+- `build_result(business_input) → InvestigationResult` — assembles final output (assessments left empty for ML layer)
+
+### How to run tests
+```bash
+python -m pytest tests/agent/test_config.py tests/agent/test_state.py -v
+```
+
+---
+
+## Step 7b: agent/tools/ — 6 investigation tools (Person 1)
+**Date:** 2026-08-30
+**Status:** ✅ Complete — 97 tests passing
+
+### What was built
+- `agent/tools/web_search.py` — DuckDuckGo HTML scraping (no API key)
+- `agent/tools/webpage_extractor.py` — HTML fetch + clean text extraction
+- `agent/tools/social_analyzer.py` — social media signals + Pakistani informal market demand phrases
+- `agent/tools/review_analyzer.py` — star ratings, review counts, complaint signals
+- `agent/tools/product_analyzer.py` — marketplace units sold, listing counts, price activity
+- `agent/tools/user_input_parser.py` — self-reported business info → low-confidence evidence
+- `tests/agent/test_tools.py` — 97 tests covering all 4 analysers and user input parser
+
+### Module overview
+
+**`web_search.py`** — `WebSearchTool(config, search_fn=None)`
+- `search(query) → List[SearchResult]` — runs DuckDuckGo HTML search; injectable `search_fn` for tests
+- `build_query(business_name, location, topic)` — formats search strings
+- `SearchResult(url, title, snippet)` dataclass
+
+**`webpage_extractor.py`** — `WebpageExtractor(config, fetch_fn=None)`
+- `fetch(url) → Optional[PageContent]` — fetches URL, strips HTML, returns clean text; injectable `fetch_fn` for tests
+- `fetch_multiple(urls) → list`
+- `PageContent(url, title, text, word_count)` with `is_empty`, `truncated(max_chars)`
+
+**`social_analyzer.py`** — `SocialAnalyzer`
+- `analyze(text, url, platform) → List[EvidenceItem]` — extracts follower counts (k/M suffix parsed), engagement, recent-activity indicator, and informal demand signals (Pakistani market phrases: "taking orders", "DM for rates", "limited slots", "booking open", etc.)
+- `detect_platform(url) → str` — guesses platform from URL
+- Demand signal items always get `SourceReliability.LOW`; TikTok/WhatsApp get `LOW`; others `MEDIUM`
+
+**`review_analyzer.py`** — `ReviewAnalyzer`
+- `analyze(text, url, source_name) → List[EvidenceItem]` — extracts star rating, review count, review snippets (sentences with strong sentiment words), complaint signals
+- `_reliability_for(source_name)` — Google → HIGH, Daraz → MEDIUM, OLX → LOW
+
+**`product_analyzer.py`** — `ProductAnalyzer`
+- `analyze(text, url, source_name) → List[EvidenceItem]` — extracts units sold, active listing count, price activity count (Rs./PKR patterns), listing freshness (today/hours ago/etc.)
+
+**`user_input_parser.py`** — `UserInputParser` ← **Key for informal Pakistani micro-businesses**
+- `parse(business_input) → List[EvidenceItem]` — processes `additional_info` + `description` fields
+- Extracts: monthly revenue (Rs/PKR/k suffix), monthly orders (suits/pieces/items), years in business (direct or "since YYYY"), staff count (employees/tailors/stitchers), sales channels (WhatsApp/Instagram/Daraz/home-based/etc.), product types (lawn/kurta/bridal/embroidered/etc.)
+- ALL output: `EvidenceType.INFERENCE`, `SourceReliability.LOW`, `confidence ≤ 0.50`
+
+### How to run tests
+```bash
+python -m pytest tests/agent/test_tools.py -v
+```
+
+---
+
+## Step 7c: agent/prompts/ — LLM prompt templates (Person 1)
+**Date:** 2026-08-30
+**Status:** ✅ Complete
+
+### What was built
+- `agent/prompts/templates.py` — 4 LLM prompt templates
+- `agent/prompts/__init__.py` — package init
+
+### Module overview
+
+**`agent/prompts/templates.py`**
+1. `investigation_plan_prompt(...)` — given business details and what has already been searched, asks LLM for 3 new search queries. Returns: JSON array of strings.
+2. `extraction_prompt(...)` — given a URL, source type, and page text, asks LLM to extract structured evidence. Returns: JSON array of objects with `field_name/value/unit/evidence_type/confidence/raw_snippet`.
+3. `feature_discovery_prompt(...)` — given business details and collected evidence, asks LLM to identify business signals. Returns: JSON array with `name/category/value/reason/confidence/searched`.
+4. `assessment_prompt(...)` — asks LLM for a 2-sentence evidence-based justification.
+
+---
+
+## Step 7d: agent/agent.py — main orchestrator (Person 1)
+**Date:** 2026-08-30
+**Status:** ✅ Complete — 35 integration tests passing
+
+### What was built
+- `agent/agent.py` — `InvestigationAgent` class, the top-level entry point for all investigation logic
+- `tests/agent/test_agent.py` — 35 tests covering URL classification, JSON parsing, smoke tests, self-reported evidence, social/marketplace extraction, search loop, missing info flagging, LLM evidence parsing, and full end-to-end flow
+
+### Module overview
+
+**`_classify_url(url) → str`** — classifies a URL as `social_media`, `marketplace`, `review_site`, `government`, or `general_web`
+
+**`_extract_json_array(text) → list`** — safely parses the first JSON array from any LLM response string; returns `[]` on any failure
+
+**`_LLMClient(config, call_fn=None)`** — wraps the LLM API. `call_fn=None` hits real OpenAI; inject any callable in tests to avoid API calls.
+
+**`InvestigationAgent(config, llm_call_fn, search_fn, fetch_fn)`** — all dependencies injectable:
+- `investigate(business_input) → InvestigationResult` — 5-step entry point:
+  1. Parse self-reported info via `UserInputParser` (produces INFERENCE/LOW evidence)
+  2. Fetch all user-provided URLs (website, social_links, marketplace_links)
+  3. LLM-planned search → fetch → extract loop until stop condition
+  4. LLM feature discovery from all accumulated evidence
+  5. Rule-based signal building from evidence values
+- `_build_signals()` — positive signals: rating ≥ 4.0, followers ≥ 1000, informal demand, units_sold ≥ 10; risk signals: complaint_signals present, rating < 2.5; missing info: SECP registration, reviews, social presence
+- Result has no ML assessments filled — pass to `ml.assessment.generate_assessment()` next
+
+### Full investigation pipeline
+```
+BusinessInput
+     ↓ (UserInputParser)
+ self-reported evidence (INFERENCE/LOW)
+     ↓ (known URL fetch)
+ social/marketplace/review evidence (OBSERVED/MEDIUM)
+     ↓ (search → fetch → LLM extract loop)
+ web evidence (OBSERVED/INFERENCE, various reliability)
+     ↓ (LLM feature discovery)
+ DiscoveredFeatures
+     ↓ (rule-based signal building)
+ InvestigationResult  →  ml.assessment.generate_assessment()
+```
+
+### How to run tests
+```bash
+python -m pytest tests/agent/test_agent.py -v
+# All agent tests:
+python -m pytest tests/agent/ -v
+```
+
+---
+
+## Step 9b: SHAP Explainability Layer (Person 2)
+**Date:** 2026-08-30
+**Status:** ✅ Complete — 42 tests passing
+
+### What was built
+- `ml/explainability.py` (220 lines) — SHAP-based feature importance for both assessments
+- `tests/ml/test_explainability.py` (260 lines) — 42 tests
+
+### Module overview
+Uses SHAP's `KernelExplainer` to approximate per-feature Shapley values for the trustworthiness and business potential scoring functions, with no trained model required — it wraps the deterministic risk engine functions directly.
+
+1. **`FeatureImportance`** — dataclass holding one feature's name, its signed SHAP value (positive = raises score, negative = lowers score), and its actual value in the investigation.
+2. **`ExplainabilityReport`** — holds two sorted lists of `FeatureImportance` (one per assessment), plus baseline scores (expected value over background) and predicted scores. Helper methods `top_trust_drivers(n)` and `top_potential_drivers(n)` return the top-n drivers.
+3. **`_make_background()`** — builds a 20-row synthetic background dataset used as the SHAP reference distribution (mid-range "neutral" investigation values, seeded for reproducibility).
+4. **`explain_assessment(result, n_samples=100)`** — main entry point. Extracts features, runs sentiment + credibility, wraps the two scoring functions for SHAP, and returns a fully populated `ExplainabilityReport`. Results are sorted by absolute SHAP value descending (biggest driver first).
+5. **`format_report(report, top_n=5)`** — convenience function that returns a human-readable string of the top drivers in each assessment for logging or display.
+
+### Test summary (42 tests)
+- `FeatureImportance` structure and repr: 4 tests
+- Background dataset shape, finiteness, range: 3 tests
+- `ExplainabilityReport` structure (types, lengths, field types): 10 tests
+- Score bounds (all scores 0–1): 4 tests
+- Sort order (descending abs SHAP): 2 tests
+- Top drivers helpers: 5 tests
+- Feature names match extractor: 3 tests
+- Empty evidence edge case: 4 tests
+- `format_report` output: 7 tests
+
+### How to run tests
+```bash
+python -m pytest tests/ml/test_explainability.py -v
+# All ML tests:
+python -m pytest tests/ml/ -v
+```
+
+### Using the explainability module
+```python
+from ml.explainability import explain_assessment, format_report
+
+result = agent.invest(business_input)          # Person 1's output
+enriched = generate_assessment(result)          # Person 2's ML overlay
+report = explain_assessment(result, n_samples=100)
+
+# Top 5 trust drivers
+for fi in report.top_trust_drivers(5):
+    print(fi.feature_name, fi.shap_value)
+
+# Human-readable summary
+print(format_report(report))
+```
+
+**Dependency added:** `shap==0.52.0`
+
+---
+
+## Step 10b: Feature Extractor Expanded to 60 Features (Person 2)
+**Date:** 2026-08-30
+**Status:** ✅ Complete — 56 tests passing (243 total ML tests passing)
+
+### What was built
+- `ml/feature_extractor.py` expanded — 3 new sub-extractors, 16 new features (44 → 60)
+- `tests/ml/test_feature_extractor.py` updated — 12 new tests added (44 → 56 tests)
+
+### New sub-extractors added
+
+**`extract_evidence_type_ratios(evidence)`** — 4 features
+Normalised ratios (0–1) of evidence by type: observed, corroborated, inference, unknown.
+Complements the existing raw counts — comparisons across investigations of different sizes are now meaningful.
+
+**`extract_sentiment_features(result)`** — 4 features
+Runs the sentiment module over all evidence text and exposes `sentiment_positive`, `sentiment_negative`, `sentiment_neutral`, `sentiment_compound` as flat numeric features. Previously the risk engine used sentiment internally but it was invisible to the model.
+
+**`extract_credibility_features(result)`** — 8 features
+Exposes all 7 credibility sub-scores plus the overall credibility score: `credibility_source_reliability`, `credibility_evidence_quality`, `credibility_confidence`, `credibility_reliable_ratio`, `credibility_source_diversity`, `credibility_corroboration`, `credibility_evidence_depth`, `credibility_overall`. Previously also only used internally by the risk engine.
+
+### Complete feature list (60 features)
+| Group | Features | Count |
+|---|---|---|
+| Evidence counts | total, reliable, reliable_ratio, observed/corroborated/inference/unknown counts | 7 |
+| Confidence stats | mean, min, max, std | 4 |
+| Signal ratios | positive/risk counts, total, ratios, missing_info | 6 |
+| Source reliability | high/medium/low/unknown ratios | 4 |
+| Feature categories | total, found, found_ratio, searched, searched_ratio, 11 category counts | 16 |
+| Investigation meta | searches, sources, unique_sources, 4 status flags | 7 |
+| Evidence type ratios | observed/corroborated/inference/unknown ratios | 4 |
+| Sentiment | positive, negative, neutral, compound | 4 |
+| Credibility sub-scores | 7 sub-scores + overall | 8 |
+| **Total** | | **60** |
+
+### How to run tests
+```bash
+python -m pytest tests/ml/test_feature_extractor.py -v
+# Full ML suite:
+python -m pytest tests/ml/ -v
+```
+
+---
+
+## Next steps (Person 2)
+
+**Step 11b: Dataset preparation + model training (ml/dataset.py + ml/model_trainer.py)**
+- `ml/dataset.py`: converts list of `InvestigationResult` + labels into a pandas DataFrame of 60 features. Includes a synthetic data generator for development/testing — structurally identical to real data, swap the generator for real data and rerun with zero code changes.
+- `ml/model_trainer.py`: trains Random Forest, Gradient Boosting, XGBoost on the 60 features, persists models to `data/models/`.
+
+**Step 12b: Model comparison and evaluation (ml/model_evaluator.py)**
+- Compare all trained models on accuracy, F1, AUC-ROC, feature importance.
+- Produce an evaluation report.
 
 ---
 
