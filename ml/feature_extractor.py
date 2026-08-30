@@ -24,6 +24,17 @@ from agent.schemas.result import InvestigationResult, InvestigationStatus
 # Type alias used throughout this module.
 FeatureDict = Dict[str, float]
 
+# Lazy imports — imported inside functions to avoid circular imports at
+# module load time (credibility_scorer and sentiment both import from
+# agent.schemas, as does this module).
+def _get_sentiment_module():
+    from ml.sentiment import score_evidence_texts
+    return score_evidence_texts
+
+def _get_credibility_module():
+    from ml.credibility_scorer import score_credibility
+    return score_credibility
+
 
 # ── Evidence counts ───────────────────────────────────────────────────────────
 
@@ -197,6 +208,86 @@ def extract_investigation_meta(result: InvestigationResult) -> FeatureDict:
     }
 
 
+# ── Evidence type ratios ──────────────────────────────────────────────────────
+
+def extract_evidence_type_ratios(evidence: List[EvidenceItem]) -> FeatureDict:
+    """
+    Normalised ratios of evidence by type.
+
+    Complements ``extract_evidence_counts`` with ratio versions that are
+    comparable across investigations of different sizes — a small thorough
+    investigation and a large shallow one both produce values in [0, 1].
+    """
+    total = len(evidence)
+    if total == 0:
+        return {
+            "evidence_observed_ratio": 0.0,
+            "evidence_corroborated_ratio": 0.0,
+            "evidence_inference_ratio": 0.0,
+            "evidence_unknown_ratio": 0.0,
+        }
+
+    type_counts = {t: 0 for t in EvidenceType}
+    for e in evidence:
+        type_counts[e.evidence_type] += 1
+
+    return {
+        "evidence_observed_ratio": type_counts[EvidenceType.OBSERVED] / total,
+        "evidence_corroborated_ratio": type_counts[EvidenceType.CORROBORATED] / total,
+        "evidence_inference_ratio": type_counts[EvidenceType.INFERENCE] / total,
+        "evidence_unknown_ratio": type_counts[EvidenceType.UNKNOWN] / total,
+    }
+
+
+# ── Sentiment features ────────────────────────────────────────────────────────
+
+def extract_sentiment_features(result: InvestigationResult) -> FeatureDict:
+    """
+    Sentiment scores derived from the text in evidence items.
+
+    Runs the sentiment module over all evidence text (raw_snippet or value)
+    and exposes the four SentimentScore fields as numeric features.
+    These capture public perception signals that are invisible to count-based
+    features — two businesses can have identical evidence counts but very
+    different review sentiment.
+    """
+    score_evidence_texts = _get_sentiment_module()
+    sentiment = score_evidence_texts(result.evidence)
+
+    return {
+        "sentiment_positive": sentiment.positive,
+        "sentiment_negative": sentiment.negative,
+        "sentiment_neutral": sentiment.neutral,
+        "sentiment_compound": sentiment.compound,
+    }
+
+
+# ── Credibility sub-scores ────────────────────────────────────────────────────
+
+def extract_credibility_features(result: InvestigationResult) -> FeatureDict:
+    """
+    The seven credibility sub-scores plus the overall credibility score.
+
+    Exposes the internals of ``CredibilityScore`` as flat numeric features
+    so the model can learn which aspects of credibility matter most for
+    trustworthiness vs business potential.  Includes a one-hot level flag
+    for the credibility level classification.
+    """
+    score_credibility = _get_credibility_module()
+    cred = score_credibility(result)
+
+    return {
+        "credibility_source_reliability": cred.source_reliability_score,
+        "credibility_evidence_quality": cred.evidence_quality_score,
+        "credibility_confidence": cred.confidence_score,
+        "credibility_reliable_ratio": cred.reliable_ratio,
+        "credibility_source_diversity": cred.source_diversity_score,
+        "credibility_corroboration": cred.corroboration_score,
+        "credibility_evidence_depth": cred.evidence_depth_score,
+        "credibility_overall": cred.overall_score,
+    }
+
+
 # ── Combined extraction ──────────────────────────────────────────────────────
 
 def extract_features(result: InvestigationResult) -> FeatureDict:
@@ -210,9 +301,13 @@ def extract_features(result: InvestigationResult) -> FeatureDict:
     Example::
 
         features = extract_features(result)
-        # features["evidence_count_total"] == 12.0
-        # features["confidence_mean"]      == 0.81
+        # features["evidence_count_total"]      == 12.0
+        # features["confidence_mean"]            == 0.81
+        # features["sentiment_compound"]         == 0.42
+        # features["credibility_overall"]        == 0.67
+        # features["evidence_observed_ratio"]    == 0.75
         # ...
+        # Total: 59 numeric features.
     """
     features: FeatureDict = {}
     features.update(extract_evidence_counts(result.evidence))
@@ -221,4 +316,7 @@ def extract_features(result: InvestigationResult) -> FeatureDict:
     features.update(extract_source_reliability(result.evidence))
     features.update(extract_feature_categories(result.features))
     features.update(extract_investigation_meta(result))
+    features.update(extract_evidence_type_ratios(result.evidence))
+    features.update(extract_sentiment_features(result))
+    features.update(extract_credibility_features(result))
     return features
