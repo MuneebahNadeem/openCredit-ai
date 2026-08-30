@@ -28,6 +28,9 @@ from ml.feature_extractor import (
     extract_source_reliability,
     extract_feature_categories,
     extract_investigation_meta,
+    extract_evidence_type_ratios,
+    extract_sentiment_features,
+    extract_credibility_features,
 )
 
 
@@ -476,8 +479,19 @@ class TestExtractFeatures:
     def test_feature_count_is_stable(self):
         """Regression guard: the total number of extracted features should not change silently."""
         f = extract_features(make_result())
-        # 7 evidence + 4 confidence + 6 signal + 4 reliability + 16 category + 7 meta = 44
-        assert len(f) == 44
+        # 7 evidence + 4 confidence + 6 signal + 4 reliability + 16 category + 7 meta
+        # + 4 evidence_type_ratios + 4 sentiment + 8 credibility = 60
+        assert len(f) == 60
+
+    def test_contains_new_subextractors(self):
+        result = make_result()
+        combined = extract_features(result)
+        for k in extract_evidence_type_ratios(result.evidence):
+            assert k in combined
+        for k in extract_sentiment_features(result):
+            assert k in combined
+        for k in extract_credibility_features(result):
+            assert k in combined
 
     def test_dominant_evidence_type(self):
         """When all evidence is corroborated, observed/corrob ratio should reflect that."""
@@ -503,3 +517,191 @@ class TestExtractFeatures:
         assert f["risk_signal_ratio"] > f["positive_signal_ratio"]
         assert f["risk_signal_count"] == 3.0
         assert f["positive_signal_count"] == 1.0
+
+
+# ── extract_evidence_type_ratios ──────────────────────────────────────────────
+
+class TestExtractEvidenceTypeRatios:
+
+    def test_all_observed(self):
+        evidence = [
+            make_evidence("a", etype=EvidenceType.OBSERVED),
+            make_evidence("b", etype=EvidenceType.OBSERVED),
+        ]
+        f = extract_evidence_type_ratios(evidence)
+        assert f["evidence_observed_ratio"] == pytest.approx(1.0)
+        assert f["evidence_corroborated_ratio"] == pytest.approx(0.0)
+        assert f["evidence_inference_ratio"] == pytest.approx(0.0)
+        assert f["evidence_unknown_ratio"] == pytest.approx(0.0)
+
+    def test_mixed_types(self):
+        evidence = [
+            make_evidence("a", etype=EvidenceType.OBSERVED),
+            make_evidence("b", etype=EvidenceType.CORROBORATED),
+            make_evidence("c", etype=EvidenceType.INFERENCE),
+            make_evidence("d", etype=EvidenceType.UNKNOWN),
+        ]
+        f = extract_evidence_type_ratios(evidence)
+        assert f["evidence_observed_ratio"] == pytest.approx(0.25)
+        assert f["evidence_corroborated_ratio"] == pytest.approx(0.25)
+        assert f["evidence_inference_ratio"] == pytest.approx(0.25)
+        assert f["evidence_unknown_ratio"] == pytest.approx(0.25)
+
+    def test_ratios_sum_to_one(self):
+        evidence = [
+            make_evidence("a", etype=EvidenceType.OBSERVED),
+            make_evidence("b", etype=EvidenceType.CORROBORATED),
+            make_evidence("c", etype=EvidenceType.OBSERVED),
+        ]
+        f = extract_evidence_type_ratios(evidence)
+        total = (
+            f["evidence_observed_ratio"]
+            + f["evidence_corroborated_ratio"]
+            + f["evidence_inference_ratio"]
+            + f["evidence_unknown_ratio"]
+        )
+        assert total == pytest.approx(1.0)
+
+    def test_empty_returns_zeros(self):
+        f = extract_evidence_type_ratios([])
+        assert f["evidence_observed_ratio"] == 0.0
+        assert f["evidence_corroborated_ratio"] == 0.0
+        assert f["evidence_inference_ratio"] == 0.0
+        assert f["evidence_unknown_ratio"] == 0.0
+
+    def test_ratios_in_range(self):
+        evidence = [make_evidence("a", etype=EvidenceType.OBSERVED) for _ in range(5)]
+        f = extract_evidence_type_ratios(evidence)
+        for v in f.values():
+            assert 0.0 <= v <= 1.0
+
+
+# ── extract_sentiment_features ────────────────────────────────────────────────
+
+class TestExtractSentimentFeatures:
+
+    def test_returns_four_keys(self):
+        r = make_result()
+        f = extract_sentiment_features(r)
+        assert set(f.keys()) == {
+            "sentiment_positive", "sentiment_negative",
+            "sentiment_neutral", "sentiment_compound",
+        }
+
+    def test_all_values_are_floats(self):
+        r = make_result()
+        f = extract_sentiment_features(r)
+        for v in f.values():
+            assert isinstance(v, float)
+
+    def test_positive_negative_neutral_in_range(self):
+        r = make_result()
+        f = extract_sentiment_features(r)
+        for key in ("sentiment_positive", "sentiment_negative", "sentiment_neutral"):
+            assert 0.0 <= f[key] <= 1.0
+
+    def test_compound_in_range(self):
+        r = make_result()
+        f = extract_sentiment_features(r)
+        assert -1.0 <= f["sentiment_compound"] <= 1.0
+
+    def test_empty_evidence_neutral(self):
+        r = make_result(evidence=[])
+        f = extract_sentiment_features(r)
+        assert f["sentiment_compound"] == pytest.approx(0.0)
+        assert f["sentiment_neutral"] == pytest.approx(1.0)
+
+    def test_positive_text_has_positive_compound(self):
+        from agent.schemas.evidence import EvidenceItem, EvidenceType, SourceReliability
+        pos_evidence = [
+            EvidenceItem(
+                field_name="review",
+                value="excellent quality",
+                evidence_type=EvidenceType.OBSERVED,
+                source_reliability=SourceReliability.MEDIUM,
+                confidence=0.8,
+                raw_snippet="excellent quality outstanding service",
+            )
+        ]
+        r = make_result(evidence=pos_evidence)
+        f = extract_sentiment_features(r)
+        assert f["sentiment_compound"] > 0.0
+
+    def test_negative_text_has_negative_compound(self):
+        from agent.schemas.evidence import EvidenceItem, EvidenceType, SourceReliability
+        neg_evidence = [
+            EvidenceItem(
+                field_name="review",
+                value="scam fraud terrible",
+                evidence_type=EvidenceType.OBSERVED,
+                source_reliability=SourceReliability.MEDIUM,
+                confidence=0.8,
+                raw_snippet="scam fraud terrible horrible",
+            )
+        ]
+        r = make_result(evidence=neg_evidence)
+        f = extract_sentiment_features(r)
+        assert f["sentiment_compound"] < 0.0
+
+
+# ── extract_credibility_features ──────────────────────────────────────────────
+
+class TestExtractCredibilityFeatures:
+
+    def test_returns_eight_keys(self):
+        r = make_result()
+        f = extract_credibility_features(r)
+        expected_keys = {
+            "credibility_source_reliability",
+            "credibility_evidence_quality",
+            "credibility_confidence",
+            "credibility_reliable_ratio",
+            "credibility_source_diversity",
+            "credibility_corroboration",
+            "credibility_evidence_depth",
+            "credibility_overall",
+        }
+        assert set(f.keys()) == expected_keys
+
+    def test_all_values_in_range(self):
+        r = make_result()
+        f = extract_credibility_features(r)
+        for k, v in f.items():
+            assert 0.0 <= v <= 1.0, f"{k} = {v} is out of [0, 1]"
+
+    def test_empty_evidence_all_zeros(self):
+        r = make_result(evidence=[])
+        f = extract_credibility_features(r)
+        assert f["credibility_overall"] == pytest.approx(0.0)
+        assert f["credibility_evidence_depth"] == pytest.approx(0.0)
+
+    def test_high_quality_evidence_high_overall(self):
+        evidence = [
+            EvidenceItem(
+                field_name=f"field_{i}",
+                value="verified",
+                evidence_type=EvidenceType.CORROBORATED,
+                source_name=f"source_{i}",
+                source_reliability=SourceReliability.HIGH,
+                confidence=0.95,
+            )
+            for i in range(12)
+        ]
+        r = make_result(evidence=evidence)
+        f = extract_credibility_features(r)
+        assert f["credibility_overall"] >= 0.7
+
+    def test_overall_consistent_with_sub_scores(self):
+        r = make_result()
+        f = extract_credibility_features(r)
+        # overall must be between the min and max of its sub-scores (weighted avg property)
+        sub_scores = [
+            f["credibility_source_reliability"],
+            f["credibility_evidence_quality"],
+            f["credibility_confidence"],
+            f["credibility_reliable_ratio"],
+            f["credibility_source_diversity"],
+            f["credibility_corroboration"],
+            f["credibility_evidence_depth"],
+        ]
+        assert min(sub_scores) <= f["credibility_overall"] <= max(sub_scores) + 0.01
