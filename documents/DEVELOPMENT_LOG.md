@@ -495,3 +495,126 @@ python -m pytest tests/ml/ -v
 
 ---
 
+## Step 1c: Backend API Layer (Person 3)
+**Date:** 2026-08-31
+**Status:** ✅ Complete
+
+### What was built
+FastAPI service that connects the frontend to Person 1's agent and Person 2's ML layer through thin adapters — no investigation or scoring logic is duplicated in the backend.
+
+**Endpoints** (`backend/app/api/routes.py`):
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/investigations` | Start an investigation (202 Accepted) |
+| GET | `/api/investigations` | List investigation summaries |
+| GET | `/api/investigations/{id}` | Full record (minus heavy result payload) |
+| GET | `/api/investigations/{id}/status` | Poll status — `{id, status, phase_label, error}` |
+| GET | `/api/investigations/{id}/result` | Aggregated report (409 while running, 422 if failed) |
+| POST | `/api/investigations/{id}/save` | Save / unsave a report |
+| POST | `/api/investigations/{id}/ask` | Ask OpenCredit — Q&A over a completed report |
+| GET | `/api/health` | Service status + `llm_configured` flag |
+
+**Architecture:**
+- `backend/app/main.py` — app factory, CORS, router mounting, exception handlers
+- `backend/app/services/investigations.py` — orchestration service: `ThreadPoolExecutor` runs agent + ML off the request thread; status flow `queued → investigating → analyzing → completed | partial | failed`. Phase labels come from the orchestrator only — no endpoint fabricates progress.
+- `backend/app/services/adapters/agent_adapter.py` — wraps `InvestigationAgent.investigate()`; `investigate_fn` injectable for tests
+- `backend/app/services/adapters/ml_adapter.py` — wraps `ml.assessment.generate_assessment()`; captures `generate_recommendation()`; injectable for tests
+- `backend/app/services/storage.py` — JSON-file persistence under `data/investigations/` with atomic writes
+- `backend/app/services/ask.py` — Ask OpenCredit: answers grounded in the stored report's evidence only, via OpenAI
+- `backend/app/schemas.py` — request models with friendly validation ("Please enter a valid website URL." instead of raw Pydantic errors); converts once to Person 1's `BusinessInput` at the service boundary
+- `backend/app/config.py` — pydantic-settings, `.env` support (CORS origins, storage dir, concurrency, Ask model)
+
+**Files created:**
+- `backend/app/main.py`, `backend/app/config.py`, `backend/app/schemas.py`
+- `backend/app/api/routes.py`
+- `backend/app/services/investigations.py`, `storage.py`, `ask.py`
+- `backend/app/services/adapters/agent_adapter.py`, `ml_adapter.py`
+- `requirements.txt` (repo-wide, includes Person 3 runtime deps), `.env.example`
+- All package `__init__.py` files
+
+**Dependencies added:** `fastapi==0.141.1`, `uvicorn==0.52.0`, `pydantic==2.13.4`, `pydantic-settings==2.14.2`, `python-dotenv==1.2.2`, `openai>=1.0.0`, dev: `httpx>=0.27.0`
+
+---
+
+## Step 2c: Backend Tests (Person 3)
+**Date:** 2026-08-31
+**Status:** ✅ Complete — 54 tests passing
+
+### What was built
+- `tests/backend/helpers.py` — shared fixtures: injected fake agent/ML functions, temp storage isolation, `wait_terminal()` poll helper
+- `tests/backend/test_schemas.py` — validation behaviour (name required, URL cleaning, optional stripping, `to_business_input` conversion)
+- `tests/backend/test_storage.py` — create/get/list/save round-trips, concurrent-write safety, corrupt-file tolerance
+- `tests/backend/test_investigations.py` — full lifecycle: queued→investigating→analyzing→completed, agent failure → `failed`, ML failure → `partial`, recommendation capture, Ask gating
+- `tests/backend/test_api.py` — all 8 endpoints over FastAPI TestClient: status codes (202/409/422/404/503), response shapes, no fabricated progress
+
+All backend tests run against injected fakes — no network, no LLM key, no real agent run.
+
+### How to run
+```bash
+python -m pytest tests/backend/ -v
+```
+
+---
+
+## Step 3c: Frontend — Landing, Form, Live Report (Person 3)
+**Date:** 2026-08-31
+**Status:** ✅ Complete — production build passes (55 modules)
+
+### What was built
+React 18 + Vite + React Router SPA. Plain CSS with a design-token system (Ink `#071A21`, Deep Teal `#0C3435`, Accent Lime `#C7F36B`, Light `#F5F7F3`) and the OC monogram logo.
+
+**Routes** (`frontend/src/App.jsx`):
+| Path | Page | Purpose |
+|---|---|---|
+| `/` | `Landing` | Marketing page + demo report |
+| `/new` | `NewInvestigation` | Business input form |
+| `/investigation/:id` | `InvestigationRoom` | Live status — polls `/status` every 1.5s |
+| `/report/:id` | `ReportPage` | Live report view |
+| `*` | `Landing` | Fallback |
+
+**Components** (12): `ReportView` (the full report renderer), `LevelGauge`, `EvidenceTable`, `EvidenceGraph` (SVG source→evidence→assessment map), `SignalCard`, `SourceList`, `CredibilityPanel`, `SentimentBar`, `AskPanel`, `Badges`, `Nav`, `Logo`.
+
+**Key behaviours:**
+- `ReportView` renders both the landing-page demo (from `data/exampleReport.js`, badged "Example — demo data") and live API results through one code path — the `demo` prop only controls the badge and Ask-panel disabled state, so demo and live can never visually diverge
+- Investigation room shows only real phases from the status endpoint — nothing simulated; auto-navigates to the report on `completed`/`partial`
+- Form validation mirrors backend messages; social/marketplace link fields are dynamic (add/remove)
+- Save toggle (☆/★) and Ask OpenCredit panel (graceful 503 "no LLM key" note)
+- Accessible: gauge/sentiment values exposed via aria-labels, focus-visible styles, skip-link
+
+**Files created:** `frontend/src/main.jsx`, `App.jsx`, 4 pages, 12 components, `lib/api.js`, `lib/format.js`, `data/exampleReport.js`, `styles/tokens.css`, `styles/global.css`, `styles/app.css`; `frontend/index.html`, `frontend/package.json`, `vite.config.js` (dev proxy `/api` → `127.0.0.1:8000`)
+
+### How to run
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # production build check
+```
+
+---
+
+## Step 4c: End-to-End Integration Test (Person 3)
+**Date:** 2026-08-31
+**Status:** ✅ Complete — full golden path verified in a real browser
+
+### What was verified
+Run with backend (uvicorn :8000) + frontend (Vite :5173, dev proxy) live, `llm_configured: false`:
+
+1. **Landing page** — hero, sections, and demo report render; demo badge "Example — demo data" present; gauges have correct aria-labels; 6 evidence rows with Type/Reliability badges; evidence graph, missing-info, sources, credibility sub-scores, sentiment, disabled demo Ask panel all render
+2. **Form validation** — empty submit → "Business name is required…"; invalid URL → "Please enter a valid website URL."
+3. **Golden path** — submitted "Karachi Threads Test" (Karachi, Clothing & fashion, example.com, self-reported revenue/years/channels) → 202 → investigation room → auto-navigated to `/report/:id`
+4. **Live report** — real Person 1 + Person 2 output: recommendation, both gauges, 2 inference evidence items derived from the self-reported text (correctly typed `Inference`, low reliability), example.com source "Visited — no extractable evidence", credibility sub-scores, sentiment, missing-info list
+5. **Save toggle** — ☆ → ★ Saved (`aria-pressed` true) → back to ☆
+6. **Ask 503 path** — question submitted → graceful "needs an LLM API key" note
+7. **404 path** — unknown report id → "We couldn't find that investigation" with recovery links
+8. **Slow investigation / room phases** — created via API with 3 non-routable URLs (~30s investigating): room showed real phases (done checkmark, active phase + spinner, todo phases), then completed and auto-navigated; all-unreachable URLs still yield an honest "Insufficient data" recommendation, not a failure
+9. **Console** — clean; only Vite/React-DevTools info and React Router v7 future-flag warnings
+
+Test data (`inv_1ac5027819`, `inv_2e758d4286`) was deleted after verification; dev servers stopped.
+
+### Full-suite test result (this date)
+`python -m pytest tests/` → **492 passed** (1 deprecation warning from FastAPI's TestClient).
+Note: `tests/ml/test_explainability.py` and `tests/ml/test_model_trainer.py` fail collection in this environment (`ModuleNotFoundError: No module named 'numpy'` — Person 2's shap/sklearn stack is not installed on this Python 3.14 machine). Unrelated to Person 3 code; both modules are excluded from the 492 count.
+
+---
+

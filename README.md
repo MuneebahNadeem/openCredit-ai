@@ -344,15 +344,15 @@ The system provides **decision support**, not a guaranteed investment or lending
 
 ```text
 opencredit-ai/
-├── frontend/
-├── backend/
-├── ml/
-├── agent/
-├── data/
-├── documents/
-├── tests/
-├── docker/
-└── README.md
+├── frontend/   → Person 3 — React + Vite SPA
+├── backend/    → Person 3 — FastAPI service
+├── ml/         → Person 2 — features, sentiment, credibility, risk engine
+├── agent/      → Person 1 — investigation agent and tools
+├── data/       → Shared — investigation records (data/investigations/), models
+├── documents/  → Shared — DEVELOPMENT_LOG.md
+├── tests/      → Shared — tests/{agent,ml,backend}
+├── docker/     → Shared
+└── README.md   → Shared
 ```
 
 ### Component Ownership
@@ -370,3 +370,68 @@ README.md  → Shared
 ```
 
 The top-level repository structure should remain stable unless a technical change is proposed and agreed upon by the team.
+
+---
+
+# How to Run
+
+## Prerequisites
+
+- Python 3.10+ (repo developed on 3.14)
+- Node.js 18+ (repo developed on 24)
+- An OpenAI API key — **optional**. Without it the system runs in limited mode:
+  the agent still parses self-reported info and fetches user-provided URLs, and
+  Ask OpenCredit is disabled (the UI shows a clear note).
+
+## 1. Backend (FastAPI, port 8000)
+
+```bash
+# from the repo root
+pip install -r requirements.txt
+
+# optional: configure
+cp .env.example .env        # then edit — set OPENAI_API_KEY if you have one
+
+# start
+python -m uvicorn backend.app.main:app --port 8000
+```
+
+Health check: `http://127.0.0.1:8000/api/health` → `{"status": "ok", "llm_configured": ...}`
+
+## 2. Frontend (Vite dev server, port 5173)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. The dev server proxies `/api/*` to the backend
+on port 8000, so both processes must be running.
+
+## 3. Run the tests
+
+```bash
+python -m pytest tests/backend/ -v     # Person 3 — API + services (54 tests)
+python -m pytest tests/agent/ -v       # Person 1
+python -m pytest tests/ml/ -v          # Person 2 (needs numpy/shap installed)
+```
+
+## Demo flow (for judges / walkthrough)
+
+1. **Landing page** — scroll to see the full product story, then the example
+   report (clearly badged "Example — demo data").
+2. **Start investigation** — enter a business name (required) plus anything
+   else you know: website, social links, marketplace links, description,
+   self-reported figures. Submit.
+3. **Investigation room** — real phases only (Queued → Investigating →
+   Analyzing → Report ready), polled live from the backend. Typically
+   30–90 seconds with an LLM key; a few seconds without one.
+4. **Report** — recommendation, the two separate assessments (trustworthiness
+   / business potential) with gauges and explanations, positive and risk
+   signals, the full evidence table (every number traces to a row, inferences
+   never shown as verified facts), the evidence map, missing information,
+   sources, ML credibility sub-scores and sentiment.
+5. **Save** the report (☆ → ★) and **Ask OpenCredit** follow-up questions
+   (requires OPENAI_API_KEY).
+
