@@ -23,16 +23,18 @@ class MLAdapter:
         self._assess_fn = assess_fn
 
     def run(
-        self, result: InvestigationResult
+        self,
+        result: InvestigationResult,
+        trustworthiness_override: bool = False,
     ) -> Tuple[InvestigationResult, dict]:
         if self._assess_fn is not None:
-            return self._assess_fn(result)
+            return self._assess_fn(result, trustworthiness_override=trustworthiness_override)
 
         from ml.assessment import generate_assessment, generate_recommendation
         from ml.risk_engine import assess_risk
 
-        risk = assess_risk(result)
-        enriched = generate_assessment(result)
+        risk = assess_risk(result, trustworthiness_override=trustworthiness_override)
+        enriched = generate_assessment(result, trustworthiness_override=trustworthiness_override)
 
         context = {
             "recommendation": generate_recommendation(risk),

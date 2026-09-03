@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Nav from "../components/Nav";
 import ReportView from "../components/ReportView";
-import { getInvestigation, getResult, setSaved } from "../lib/api";
+import {
+  getInvestigation,
+  getResult,
+  setSaved,
+  setTrustworthinessOverride,
+} from "../lib/api";
 
 /* The live report page. Fetches the completed investigation and renders the
    same ReportView the demo uses — one layout, two data sources. */
@@ -13,6 +18,8 @@ export default function ReportPage() {
   const [error, setError] = useState(null);
   const [stillRunning, setStillRunning] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [override, setOverride] = useState(false);
+  const [overriding, setOverriding] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -27,6 +34,7 @@ export default function ReportPage() {
       }
       if (!active) return;
       setRecord(rec);
+      setOverride(Boolean(rec.trustworthiness_override));
       if (rec.status === "failed") {
         setError({
           status: 422,
@@ -63,6 +71,27 @@ export default function ReportPage() {
       /* keep current state; the toggle is non-critical */
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function toggleOverride(enabled) {
+    if (!record || overriding) return;
+    setOverriding(true);
+    setOverride(enabled);
+    try {
+      await setTrustworthinessOverride(id, enabled);
+      const [updatedRecord, updatedResult] = await Promise.all([
+        getInvestigation(id),
+        getResult(id),
+      ]);
+      setRecord(updatedRecord);
+      setOverride(Boolean(updatedRecord.trustworthiness_override));
+      setResult(updatedResult);
+    } catch {
+      // Revert on failure so the UI stays honest.
+      setOverride((prev) => !prev);
+    } finally {
+      setOverriding(false);
     }
   }
 
@@ -137,6 +166,18 @@ export default function ReportPage() {
             ← New investigation
           </Link>
           <div className="report-toolbar-actions">
+            <label
+              className="tw-override"
+              title="Manually set trustworthiness to medium-high"
+            >
+              <input
+                type="checkbox"
+                checked={override}
+                onChange={(e) => toggleOverride(e.target.checked)}
+                disabled={overriding || !record}
+              />
+              <span>Medium-high trust</span>
+            </label>
             <button
               type="button"
               className={`btn btn-secondary report-save ${

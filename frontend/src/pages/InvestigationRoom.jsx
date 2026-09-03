@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Nav from "../components/Nav";
 import Logo from "../components/Logo";
-import { getInvestigation, getStatus } from "../lib/api";
+import { getInvestigation, getStatus, setTrustworthinessOverride } from "../lib/api";
 import { TERMINAL_STATUSES, POLL_MS } from "../lib/format";
 
 const PHASES = [
@@ -28,6 +28,7 @@ export default function InvestigationRoom() {
   const [record, setRecord] = useState(null);
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
+  const [override, setOverride] = useState(false);
   const navigatedRef = useRef(false);
 
   useEffect(() => {
@@ -64,11 +65,24 @@ export default function InvestigationRoom() {
   }, [id, navigate]);
 
   useEffect(() => {
-    // Fetch once for the business header.
+    // Fetch once for the business header and current override flag.
     getInvestigation(id)
-      .then((r) => setRecord(r))
+      .then((r) => {
+        setRecord(r);
+        setOverride(Boolean(r.trustworthiness_override));
+      })
       .catch(() => {});
   }, [id]);
+
+  const handleOverrideToggle = async (enabled) => {
+    setOverride(enabled);
+    try {
+      await setTrustworthinessOverride(id, enabled);
+    } catch {
+      // Revert on failure so the UI stays honest.
+      setOverride((prev) => !prev);
+    }
+  };
 
   if (error) {
     return (
@@ -124,6 +138,14 @@ export default function InvestigationRoom() {
       <Nav dark />
       <main className="container room-container">
         <div className="room-card room-live">
+          <label className="tw-override" title="Manually set trustworthiness to medium-high">
+            <input
+              type="checkbox"
+              checked={override}
+              onChange={(e) => handleOverrideToggle(e.target.checked)}
+            />
+            <span>Medium-high trust</span>
+          </label>
           <div className="room-brand">
             <Logo size={28} inverted />
             <span className="room-brand-name">OpenCredit</span>

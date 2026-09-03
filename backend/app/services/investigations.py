@@ -104,6 +104,7 @@ class InvestigationService:
         self,
         business_input: BusinessInput,
         documents: Optional[List[UploadFile]] = None,
+        trustworthiness_override: bool = False,
     ) -> dict:
         record = {
             "id": f"inv_{secrets.token_hex(5)}",
@@ -114,6 +115,7 @@ class InvestigationService:
             "phase_label": _PHASE_LABELS["queued"],
             "error": None,
             "saved": False,
+            "trustworthiness_override": trustworthiness_override,
             "business": business_input.model_dump(mode="json"),
             "documents": [],
             "result": None,
@@ -146,6 +148,34 @@ class InvestigationService:
         self._storage.save(record)
         return record
 
+    def set_trustworthiness_override(
+        self, investigation_id: str, enabled: bool
+    ) -> Optional[dict]:
+        record = self._storage.get(investigation_id)
+        if record is None:
+            return None
+        record["trustworthiness_override"] = bool(enabled)
+        self._storage.save(record)
+
+        # If the investigation already finished, re-run ML so the stored
+        # result reflects the new flag.
+        if record["status"] in TERMINAL_STATUSES and record.get("result") is not None:
+            try:
+                result_dict = dict(record["result"])
+                result_dict["business_input"] = record["business"]
+                result = InvestigationResult.model_validate(result_dict)
+                enriched, context = self._ml.run(
+                    result, trustworthiness_override=record["trustworthiness_override"]
+                )
+                record["result"] = self._aggregate(enriched, context)
+                record["completed_at"] = _now()
+                self._storage.save(record)
+            except Exception:
+                logger.exception(
+                    "Could not recompute result for override %s", investigation_id
+                )
+        return record
+
     # ── Job execution ─────────────────────────────────────────────────────
 
     def _execute(self, investigation_id: str) -> None:
@@ -170,13 +200,20 @@ class InvestigationService:
         # Merge any uploaded-document evidence before the ML assessment.
         self._add_document_evidence(record, result)
 
+        # Reload record so a trustworthiness override toggled during the
+        # investigation phase is respected when scoring starts.
+        record = self._storage.get(investigation_id) or record
+        trustworthiness_override = bool(record.get("trustworthiness_override", False))
+
         # Phase 2 — Person 2: ML / risk assessment
         record["status"] = "analyzing"
         record["phase_label"] = _PHASE_LABELS["analyzing"]
         self._storage.save(record)
 
         try:
-            enriched, context = self._ml.run(result)
+            enriched, context = self._ml.run(
+                result, trustworthiness_override=trustworthiness_override
+            )
         except Exception:
             logger.exception("ML assessment failed for %s", investigation_id)
             self._fail(record, _ML_ERROR_MESSAGE)

@@ -274,6 +274,7 @@ def assess_risk(
     result: InvestigationResult,
     predictor: Optional[ModelPredictor] = None,
     model_weight: float = _MODEL_WEIGHT,
+    trustworthiness_override: bool = False,
 ) -> RiskAssessment:
     """
     Produce a complete risk assessment for an investigation.
@@ -301,6 +302,10 @@ def assess_risk(
     model_weight:
         Weight of the model score in the blend (0.0 = pure rules,
         1.0 = pure model).  Must be within [0.0, 1.0].
+    trustworthiness_override:
+        When True, raises the trustworthiness score to at least 0.65
+        (medium-high) and ensures the level is at least ``MODERATE``.
+        Business potential is not affected.
 
     When no evidence is present, both assessments return
     ``INSUFFICIENT_EVIDENCE`` with no numeric score.
@@ -319,6 +324,20 @@ def assess_risk(
 
     # ── No evidence → insufficient ───────────────────────────────────────
     if not result.evidence:
+        if trustworthiness_override:
+            trustworthiness = AssessmentScore(
+                level=AssessmentLevel.MODERATE,
+                score=0.65,
+                evidence_count=0,
+                explanation="No evidence was collected; trustworthiness manually set to medium-high by operator discretion.",
+            )
+        else:
+            trustworthiness = AssessmentScore(
+                level=AssessmentLevel.INSUFFICIENT_EVIDENCE,
+                score=None,
+                evidence_count=0,
+                explanation="No evidence was collected during the investigation.",
+            )
         insufficient = AssessmentScore(
             level=AssessmentLevel.INSUFFICIENT_EVIDENCE,
             score=None,
@@ -326,7 +345,7 @@ def assess_risk(
             explanation="No evidence was collected during the investigation.",
         )
         return RiskAssessment(
-            trustworthiness=insufficient,
+            trustworthiness=trustworthiness,
             business_potential=insufficient,
             credibility=credibility,
             sentiment=sentiment,
@@ -359,9 +378,20 @@ def assess_risk(
     trust_level = _score_to_level(trust_raw)
     potential_level = _score_to_level(potential_raw)
 
+    # ── Manual trustworthiness override (floor at medium-high) ───────────
+    if trustworthiness_override:
+        trust_raw = max(trust_raw, 0.65)
+        if trust_level in (AssessmentLevel.LOW, AssessmentLevel.INSUFFICIENT_EVIDENCE):
+            trust_level = AssessmentLevel.MODERATE
+
     trust_explanation = _explain_trustworthiness(
         trust_raw, credibility, features, model_used=model_used,
     )
+
+    if trustworthiness_override:
+        trust_explanation = (
+            f"{trust_explanation} Trustworthiness manually raised to medium-high by operator discretion."
+        )
     potential_explanation = _explain_business_potential(
         potential_raw, sentiment, features, model_used=model_used,
     )

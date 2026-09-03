@@ -1,0 +1,133 @@
+{
+  "id": "inv_1502ad3297",
+  "created_at": "2026-09-03T21:54:19.938206+00:00",
+  "started_at": "2026-09-03T21:54:19.943099+00:00",
+  "completed_at": "2026-09-03T21:55:54.182197+00:00",
+  "status": "completed",
+  "phase_label": "Investigation complete",
+  "error": null,
+  "saved": true,
+  "trustworthiness_override": false,
+  "business": {
+    "name": "jenpharm",
+    "location": "karachi ,pakistan",
+    "category": "Beauty & cosmetics",
+    "website": "https://jenpharm.com/?srsltid=AfmBOoopKZEiRXSnv-j6OoXbGgSvj6aSms_lph33YmO2shNKuFK-Kp2Z",
+    "social_links": [
+      "https://www.instagram.com/myjenpharm/?hl=en"
+    ],
+    "marketplace_links": [],
+    "description": "Jenpharm is a Pakistan-based skincare, haircare and wellness brand that has been operating for around 14 years. The company positions itself around science-backed formulations, clinically researched ingredients and products developed alongside dermatologists and other experts.\n\nIts product portfolio includes:\n\nSkincare: cleansers, moisturizers, serums, face washes, treatment creams and masks\nSun protection: multiple sunscreen/sunblock products\nHaircare: shampoos, hair serums and anti-dandruff products\nTargeted concerns: acne, hyperpigmentation, oily skin, dryness, hair fall, dandruff and skin aging\nBundles: skincare and haircare combinations",
+    "additional_info": "There isn't a publicly disclosed audited annual revenue figure that I would use as Jenpharm's official revenue.\n\nHowever, third-party e-commerce intelligence platform Particl estimates that Jenpharm generated approximately 913 million in e-commerce sales over its most recent six-month tracking period, with approximately 779,000 units sold. It also reports approximately 103 million in sales during April 2025. These are third-party estimates, not company-reported financial statements, so for OpenCredit AI they should be classified as an estimated/third-party signal, not a verified financial fact"
+  },
+  "documents": [],
+  "result": {
+    "status": "complete",
+    "searches_performed": 0,
+    "sources_examined": 2,
+    "investigated_at": "2026-09-03T21:54:21.041802Z",
+    "evidence": [
+      {
+        "field_name": "self_reported_years_in_business",
+        "value": "14",
+        "unit": null,
+        "evidence_type": "inference",
+        "confidence": 0.45,
+        "source_url": null,
+        "source_name": "self_reported",
+        "source_reliability": "low",
+        "raw_snippet": "14 years",
+        "collected_at": "2026-09-03T21:54:19.949102Z"
+      },
+      {
+        "field_name": "instagram_recently_active",
+        "value": "yes",
+        "unit": null,
+        "evidence_type": "observed",
+        "confidence": 0.65,
+        "source_url": "https://www.instagram.com/myjenpharm/?hl=en",
+        "source_name": "Instagram",
+        "source_reliability": "medium",
+        "raw_snippet": "Recent activity detected",
+        "collected_at": "2026-09-03T21:54:20.966801Z"
+      }
+    ],
+    "features": [],
+    "trustworthiness": {
+      "level": "low",
+      "score": 0.3654,
+      "evidence_count": 0,
+      "explanation": "Evidence credibility is low. limited reliable evidence found. score blends evidence-based rules with a trained ML model."
+    },
+    "business_potential": {
+      "level": "low",
+      "score": 0.043,
+      "evidence_count": 0,
+      "explanation": "Limited positive market signals. public sentiment is mixed or neutral. score blends evidence-based rules with a trained ML model."
+    },
+    "positive_signals": [],
+    "risk_signals": [],
+    "missing_information": [
+      "SECP/business registration not found",
+      "No customer reviews found",
+      "Social media presence not verified"
+    ],
+    "sources": [
+      "https://www.instagram.com/myjenpharm/?hl=en",
+      "https://jenpharm.com/?srsltid=AfmBOoopKZEiRXSnv-j6OoXbGgSvj6aSms_lph33YmO2shNKuFK-Kp2Z"
+    ],
+    "justification": "Trustworthiness is low (score 0.3654). business potential is low (score 0.043). based on 2 evidence items (0 reliable).",
+    "agent_status": "complete",
+    "recommendation": "decline",
+    "analysis_context": {
+      "credibility": {
+        "source_reliability_score": 0.495,
+        "evidence_quality_score": 0.5,
+        "confidence_score": 0.55,
+        "reliable_ratio": 0.0,
+        "source_diversity_score": 1.0,
+        "corroboration_score": 0.0,
+        "evidence_depth_score": 0.4472135954999579,
+        "overall_score": 0.3738320393249937,
+        "level": "low"
+      },
+      "sentiment": {
+        "positive": 0.0,
+        "negative": 0.0,
+        "neutral": 1.0,
+        "compound": 0.0,
+        "label": "neutral"
+      }
+    },
+    "sources_detail": [
+      {
+        "url": "unknown",
+        "name": "self_reported",
+        "reliability": "low",
+        "evidence_count": 1,
+        "evidence_fields": [
+          "self_reported_years_in_business"
+        ],
+        "type": "web"
+      },
+      {
+        "url": "https://www.instagram.com/myjenpharm/?hl=en",
+        "name": "Instagram",
+        "reliability": "medium",
+        "evidence_count": 1,
+        "evidence_fields": [
+          "instagram_recently_active"
+        ],
+        "type": "social"
+      },
+      {
+        "url": "https://jenpharm.com/?srsltid=AfmBOoopKZEiRXSnv-j6OoXbGgSvj6aSms_lph33YmO2shNKuFK-Kp2Z",
+        "name": "jenpharm.com",
+        "reliability": "unknown",
+        "evidence_count": 0,
+        "evidence_fields": [],
+        "type": "web"
+      }
+    ]
+  }
+}

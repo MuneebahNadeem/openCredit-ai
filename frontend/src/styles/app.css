@@ -529,6 +529,23 @@
 .form-card {
   display: grid;
   gap: 22px;
+  position: relative;
+  padding-top: 56px;
+}
+
+.form-card .tw-override {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  color: var(--text-muted);
+}
+
+.form-card .tw-override input {
+  background: var(--stroke);
+}
+
+.form-card .tw-override input::before {
+  background: var(--text);
 }
 
 .field-row {
@@ -815,12 +832,60 @@
 }
 
 .room-live {
+  position: relative;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--stroke-dark);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-2);
   padding: 42px;
   color: var(--text-invert);
+}
+
+.tw-override {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--text-invert-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.tw-override input {
+  appearance: none;
+  width: 32px;
+  height: 18px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--stroke-dark);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s var(--ease);
+}
+
+.tw-override input::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-invert);
+  transition: transform 0.2s var(--ease);
+}
+
+.tw-override input:checked {
+  background: var(--accent);
+}
+
+.tw-override input:checked::before {
+  transform: translateX(14px);
+  background: var(--ink);
 }
 
 .room-live h1 {
@@ -1016,6 +1081,25 @@
 
 .report-back:hover {
   color: var(--teal-2);
+}
+
+.report-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.report-toolbar-actions .tw-override {
+  position: static;
+  color: var(--text-muted);
+}
+
+.report-toolbar-actions .tw-override input {
+  background: var(--stroke);
+}
+
+.report-toolbar-actions .tw-override input::before {
+  background: var(--text);
 }
 
 .report-save {

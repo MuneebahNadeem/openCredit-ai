@@ -37,6 +37,7 @@ class InvestigationCreateRequest(BaseModel):
     marketplace_links: List[str] = []
     description: Optional[str] = None
     additional_info: Optional[str] = None
+    trustworthiness_override: bool = False
 
     @field_validator("name")
     @classmethod
@@ -93,3 +94,7 @@ class AskRequest(BaseModel):
 
 class SaveRequest(BaseModel):
     saved: bool
+
+
+class TrustworthinessOverrideRequest(BaseModel):
+    enabled: bool

@@ -53,6 +53,7 @@ export default function NewInvestigation() {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [override, setOverride] = useState(false);
 
   function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -163,6 +164,7 @@ export default function NewInvestigation() {
           .filter(Boolean),
         description: form.description.trim() || null,
         additional_info: form.additionalInfo.trim() || null,
+        trustworthiness_override: override,
       };
       const record = await createInvestigation(payload, documents);
       navigate(`/investigation/${record.id}`);
@@ -186,6 +188,17 @@ export default function NewInvestigation() {
         </div>
 
         <form className="card card-pad form-card" onSubmit={submit} noValidate>
+          <label
+            className="tw-override"
+            title="Manually set trustworthiness to medium-high"
+          >
+            <input
+              type="checkbox"
+              checked={override}
+              onChange={(e) => setOverride(e.target.checked)}
+            />
+            <span>Medium-high trust</span>
+          </label>
           <div className="field-row">
             <div className={`field ${errors.name ? "field-error" : ""}`}>
               <label htmlFor="f-name">

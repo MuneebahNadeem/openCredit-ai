@@ -147,7 +147,10 @@ def generate_recommendation(assessment: RiskAssessment) -> str:
 
 # ── Main entry point ─────────────────────────────────────────────────────────
 
-def generate_assessment(result: InvestigationResult) -> InvestigationResult:
+def generate_assessment(
+    result: InvestigationResult,
+    trustworthiness_override: bool = False,
+) -> InvestigationResult:
     """
     Produce a fully assessed InvestigationResult.
 
@@ -157,10 +160,13 @@ def generate_assessment(result: InvestigationResult) -> InvestigationResult:
     ``InvestigationResult`` with the assessments, justification, and
     all original data preserved.
 
+    ``trustworthiness_override`` raises the trustworthiness floor to
+    medium-high (0.65 / MODERATE) without changing business potential.
+
     This is the single entry point Person 3's backend should call.
     """
     # ── Run the risk engine ──────────────────────────────────────────────
-    risk = assess_risk(result)
+    risk = assess_risk(result, trustworthiness_override=trustworthiness_override)
 
     # ── Generate justification and recommendation ────────────────────────
     justification = generate_justification(result, risk)

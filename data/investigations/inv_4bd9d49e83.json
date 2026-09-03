@@ -1,0 +1,141 @@
+{
+  "id": "inv_4bd9d49e83",
+  "created_at": "2026-09-03T20:37:43.377881+00:00",
+  "started_at": "2026-09-03T20:37:43.380760+00:00",
+  "completed_at": "2026-09-03T21:11:05.307383+00:00",
+  "status": "completed",
+  "phase_label": "Investigation complete",
+  "error": null,
+  "saved": false,
+  "business": {
+    "name": "jenpharm",
+    "location": "karachi,pakistan",
+    "category": "Beauty & cosmetics",
+    "website": "https://jenpharm.com/?srsltid=AfmBOopU3itkG3qTcuAAM0sriWu18KOBWPXqRSr0QK9dAk8up5mvLPwt",
+    "social_links": [
+      "https://www.instagram.com/myjenpharm/"
+    ],
+    "marketplace_links": [],
+    "description": "the pharmatical brand who sells,skincare and medical conditions skincare product",
+    "additional_info": "their instagram follower are almost 1m and most use pharma skin care brand in pakistan"
+  },
+  "documents": [],
+  "result": {
+    "status": "complete",
+    "searches_performed": 0,
+    "sources_examined": 2,
+    "investigated_at": "2026-09-03T20:37:47.480998Z",
+    "evidence": [
+      {
+        "field_name": "self_reported_sales_channels",
+        "value": "instagram",
+        "unit": null,
+        "evidence_type": "inference",
+        "confidence": 0.5,
+        "source_url": null,
+        "source_name": "self_reported",
+        "source_reliability": "low",
+        "raw_snippet": "Sales channels mentioned: instagram",
+        "collected_at": "2026-09-03T20:37:43.496065Z"
+      },
+      {
+        "field_name": "instagram_recently_active",
+        "value": "yes",
+        "unit": null,
+        "evidence_type": "observed",
+        "confidence": 0.65,
+        "source_url": "https://www.instagram.com/myjenpharm/",
+        "source_name": "Instagram",
+        "source_reliability": "medium",
+        "raw_snippet": "Recent activity detected",
+        "collected_at": "2026-09-03T20:37:47.439992Z"
+      }
+    ],
+    "features": [],
+    "trustworthiness": {
+      "level": "low",
+      "score": 0.3661,
+      "evidence_count": 0,
+      "explanation": "Evidence credibility is low. limited reliable evidence found. score blends evidence-based rules with a trained ML model."
+    },
+    "business_potential": {
+      "level": "low",
+      "score": 0.0433,
+      "evidence_count": 0,
+      "explanation": "Limited positive market signals. public sentiment is mixed or neutral. score blends evidence-based rules with a trained ML model."
+    },
+    "positive_signals": [],
+    "risk_signals": [],
+    "missing_information": [
+      "SECP/business registration not found",
+      "No customer reviews found",
+      "Social media presence not verified"
+    ],
+    "sources": [
+      "https://jenpharm.com/?srsltid=AfmBOopU3itkG3qTcuAAM0sriWu18KOBWPXqRSr0QK9dAk8up5mvLPwt",
+      "https://www.instagram.com/myjenpharm"
+    ],
+    "justification": "Trustworthiness is low (score 0.3661). business potential is low (score 0.0433). based on 2 evidence items (0 reliable).",
+    "agent_status": "complete",
+    "recommendation": "decline",
+    "analysis_context": {
+      "credibility": {
+        "source_reliability_score": 0.495,
+        "evidence_quality_score": 0.5,
+        "confidence_score": 0.575,
+        "reliable_ratio": 0.0,
+        "source_diversity_score": 1.0,
+        "corroboration_score": 0.0,
+        "evidence_depth_score": 0.4472135954999579,
+        "overall_score": 0.3775820393249937,
+        "level": "low"
+      },
+      "sentiment": {
+        "positive": 0.0,
+        "negative": 0.0,
+        "neutral": 1.0,
+        "compound": 0.0,
+        "label": "neutral"
+      }
+    },
+    "sources_detail": [
+      {
+        "url": "unknown",
+        "name": "self_reported",
+        "reliability": "low",
+        "evidence_count": 1,
+        "evidence_fields": [
+          "self_reported_sales_channels"
+        ],
+        "type": "web"
+      },
+      {
+        "url": "https://www.instagram.com/myjenpharm/",
+        "name": "Instagram",
+        "reliability": "medium",
+        "evidence_count": 1,
+        "evidence_fields": [
+          "instagram_recently_active"
+        ],
+        "type": "social"
+      },
+      {
+        "url": "https://jenpharm.com/?srsltid=AfmBOopU3itkG3qTcuAAM0sriWu18KOBWPXqRSr0QK9dAk8up5mvLPwt",
+        "name": "jenpharm.com",
+        "reliability": "unknown",
+        "evidence_count": 0,
+        "evidence_fields": [],
+        "type": "web"
+      },
+      {
+        "url": "https://www.instagram.com/myjenpharm",
+        "name": "www.instagram.com",
+        "reliability": "unknown",
+        "evidence_count": 0,
+        "evidence_fields": [],
+        "type": "social"
+      }
+    ]
+  },
+  "trustworthiness_override": false
+}

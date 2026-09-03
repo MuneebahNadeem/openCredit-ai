@@ -54,6 +54,14 @@ export function setSaved(id, saved) {
   });
 }
 
+export function setTrustworthinessOverride(id, enabled) {
+  return request(`/api/investigations/${id}/trustworthiness-override`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ enabled }),
+  });
+}
+
 export function askQuestion(id, question) {
   return request(`/api/investigations/${id}/ask`, {
     method: "POST",

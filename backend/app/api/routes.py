@@ -25,6 +25,7 @@ from backend.app.schemas import (
     AskRequest,
     InvestigationCreateRequest,
     SaveRequest,
+    TrustworthinessOverrideRequest,
 )
 from backend.app.services.adapters.agent_adapter import llm_configured
 from backend.app.services.ask import ask
@@ -59,7 +60,11 @@ def create_investigation(
             detail=" ".join(messages) or "Invalid request.",
         )
 
-    record = get_service().create(request.to_business_input(), documents=documents)
+    record = get_service().create(
+        request.to_business_input(),
+        documents=documents,
+        trustworthiness_override=request.trustworthiness_override,
+    )
     return _public_record(record)
 
 
@@ -134,6 +139,17 @@ def ask_question(investigation_id: str, payload: AskRequest):
             detail="Ask OpenCredit could not reach the model. Please try again.",
         )
     return {"question": payload.question, "answer": answer}
+
+
+@router.post("/investigations/{investigation_id}/trustworthiness-override")
+def set_trustworthiness_override(
+    investigation_id: str, payload: TrustworthinessOverrideRequest
+):
+    record = _require(investigation_id)
+    updated = get_service().set_trustworthiness_override(
+        investigation_id, payload.enabled
+    )
+    return _public_record(updated)
 
 
 @router.get("/health")
