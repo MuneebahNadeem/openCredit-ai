@@ -19,11 +19,14 @@ async function request(path, options = {}) {
   return response.json();
 }
 
-export function createInvestigation(payload) {
+export function createInvestigation(payload, documents = []) {
+  const formData = new FormData();
+  formData.append("payload", JSON.stringify(payload));
+  documents.forEach((file) => formData.append("documents", file));
+
   return request("/api/investigations", {
     method: "POST",
-    headers: JSON_HEADERS,
-    body: JSON.stringify(payload),
+    body: formData,
   });
 }
 

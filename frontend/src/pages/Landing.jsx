@@ -335,10 +335,7 @@ export default function Landing() {
       <footer className="footer">
         <div className="container footer-inner">
           <div className="footer-brand">
-            <Logo size={26} inverted />
-            <span>
-              Open<em>Credit</em>
-            </span>
+            <Logo size={26} inverted withWordmark />
           </div>
           <p className="footer-note">
             Hackathon project · OpenCredit AI · Decision support for

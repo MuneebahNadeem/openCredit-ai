@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # Where completed investigation records are persisted (JSON files).
     investigations_dir: str = "data/investigations"
 
+    # Where uploaded document binaries are stored.
+    documents_dir: str = "data/documents"
+
     # How many investigations may run at the same time.
     max_concurrent_investigations: int = 2
 

@@ -32,8 +32,9 @@
   --stroke-dark: rgba(255, 255, 255, 0.12);
 
   /* Type */
-  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-sans: "Geist", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", "Cascadia Code", Consolas, monospace;
 
   /* Radii & shadows */
   --radius-sm: 8px;

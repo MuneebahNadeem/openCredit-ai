@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from pydantic import ValidationError
 
 from backend.app.schemas import (
     AskRequest,
@@ -38,8 +39,27 @@ router = APIRouter(prefix="/api")
 
 
 @router.post("/investigations", status_code=202)
-def create_investigation(payload: InvestigationCreateRequest):
-    record = get_service().create(payload.to_business_input())
+def create_investigation(
+    payload: str = Form(...),
+    documents: list[UploadFile] = File(default=[]),
+):
+    try:
+        request = InvestigationCreateRequest.model_validate_json(payload)
+    except ValidationError as exc:
+        messages = []
+        for err in exc.errors():
+            field = ".".join(str(loc) for loc in err.get("loc", []) if loc != "body")
+            message = err.get("msg", "").removeprefix("Value error, ")
+            if field:
+                messages.append(f"{field}: {message}" if message else field)
+            elif message:
+                messages.append(message)
+        raise HTTPException(
+            status_code=422,
+            detail=" ".join(messages) or "Invalid request.",
+        )
+
+    record = get_service().create(request.to_business_input(), documents=documents)
     return _public_record(record)
 
 

@@ -6,6 +6,9 @@ aggregation path exercised here is the genuine one.
 
 from __future__ import annotations
 
+import io
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -23,6 +26,11 @@ from backend.app.services.storage import InvestigationStorage
 from tests.backend.helpers import make_agent_result, wait_terminal
 
 app = create_app()
+
+
+def _post_create(client, payload, files=None):
+    data = {"payload": json.dumps(payload)}
+    return client.post("/api/investigations", data=data, files=files)
 
 
 @pytest.fixture()
@@ -50,7 +58,7 @@ def _run_to_completion(client, service):
         "social_links": ["instagram.com/karachithreads"],
         "additional_info": "10 years in business",
     }
-    response = client.post("/api/investigations", json=payload)
+    response = _post_create(client, payload)
     assert response.status_code == 202
     record = response.json()
     final = wait_terminal(service, record["id"])
@@ -68,9 +76,7 @@ class TestHealth:
 
 class TestCreate:
     def test_create_returns_202_with_record(self, client):
-        response = client.post(
-            "/api/investigations", json={"name": "Karachi Threads"}
-        )
+        response = _post_create(client, {"name": "Karachi Threads"})
         assert response.status_code == 202
         record = response.json()
         assert record["id"].startswith("inv_")
@@ -79,38 +85,68 @@ class TestCreate:
         assert "result" not in record
 
     def test_create_normalises_urls(self, client):
-        response = client.post(
-            "/api/investigations",
-            json={"name": "B", "website": "example.com"},
+        response = _post_create(
+            client, {"name": "B", "website": "example.com"}
         )
         assert response.status_code == 202
         assert response.json()["business"]["website"] == "https://example.com/"
 
     def test_blank_name_is_friendly_422(self, client):
-        response = client.post("/api/investigations", json={"name": "  "})
+        response = _post_create(client, {"name": "  "})
         assert response.status_code == 422
         assert "Business name is required" in response.json()["detail"]
 
     def test_bad_website_is_friendly_422(self, client):
-        response = client.post(
-            "/api/investigations", json={"name": "B", "website": "not a url"}
+        response = _post_create(
+            client, {"name": "B", "website": "not a url"}
         )
         assert response.status_code == 422
         assert "valid website URL" in response.json()["detail"]
 
     def test_bad_social_link_is_friendly_422(self, client):
-        response = client.post(
-            "/api/investigations",
-            json={"name": "B", "social_links": ["instagram.com/x", "oops"]},
+        response = _post_create(
+            client,
+            {"name": "B", "social_links": ["instagram.com/x", "oops"]},
         )
         assert response.status_code == 422
         assert "valid social media URL" in response.json()["detail"]
 
     def test_validation_error_has_no_pydantic_jargon(self, client):
-        response = client.post("/api/investigations", json={"name": "  "})
+        response = _post_create(client, {"name": "  "})
         detail = response.json()["detail"]
         assert "Input should be" not in detail
         assert "validation error" not in detail.lower()
+
+
+class TestDocuments:
+    def test_uploaded_txt_appears_as_document_source(self, client):
+        service = get_service()
+        files = {
+            "documents": (
+                "revenue.txt",
+                io.BytesIO(b"Monthly revenue Rs 500,000. 8 employees."),
+                "text/plain",
+            )
+        }
+        response = _post_create(
+            client, {"name": "Doc Biz", "location": "Lahore"}, files=files
+        )
+        assert response.status_code == 202
+        record = response.json()
+        assert len(record["documents"]) == 1
+        assert record["documents"][0]["filename"] == "revenue.txt"
+
+        final = wait_terminal(service, record["id"])
+        assert final["status"] == "completed"
+
+        result = client.get(f"/api/investigations/{record['id']}/result").json()
+        doc_sources = [s for s in result["sources_detail"] if s["type"] == "document"]
+        assert doc_sources
+        assert doc_sources[0]["name"] == "revenue.txt"
+        assert any(
+            ev["source_name"] == "uploaded_document:revenue.txt"
+            for ev in result["evidence"]
+        )
 
 
 class TestStatusAndResult:
@@ -175,8 +211,8 @@ class TestStatusAndResult:
         set_service(service)
         try:
             client = TestClient(app)
-            record = client.post(
-                "/api/investigations", json={"name": "Fail Biz"}
+            record = _post_create(
+                client, {"name": "Fail Biz"}
             ).json()
             final = wait_terminal(service, record["id"])
             assert final["status"] == "failed"

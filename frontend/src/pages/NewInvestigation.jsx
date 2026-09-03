@@ -22,6 +22,20 @@ const EXAMPLE_HINTS = [
   "Takes orders via WhatsApp and Instagram",
 ];
 
+const ALLOWED_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+  "text/csv",
+  "image/jpeg",
+  "image/png",
+];
+
+const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".xlsx", ".txt", ".csv", ".jpg", ".jpeg", ".png"];
+const MAX_FILE_SIZE_MB = 10;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
 export default function NewInvestigation() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
@@ -34,6 +48,8 @@ export default function NewInvestigation() {
     description: "",
     additionalInfo: "",
   });
+  const [documents, setDocuments] = useState([]);
+  const [dragActive, setDragActive] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
@@ -69,6 +85,41 @@ export default function NewInvestigation() {
       throw new Error(`Please enter a valid ${label} URL.`);
     }
     return withScheme;
+  }
+
+  function fileIsAllowed(file) {
+    if (ALLOWED_TYPES.includes(file.type)) return true;
+    const name = file.name.toLowerCase();
+    return ALLOWED_EXTENSIONS.some((ext) => name.endsWith(ext));
+  }
+
+  function addFiles(fileList) {
+    const incoming = Array.from(fileList || []);
+    const next = [...documents];
+    const fileErrors = [];
+    incoming.forEach((file) => {
+      if (!fileIsAllowed(file)) {
+        fileErrors.push(`${file.name}: file type not allowed.`);
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        fileErrors.push(`${file.name}: exceeds ${MAX_FILE_SIZE_MB} MB limit.`);
+        return;
+      }
+      if (!next.some((d) => d.name === file.name && d.size === file.size)) {
+        next.push(file);
+      }
+    });
+    setDocuments(next);
+    if (fileErrors.length) {
+      setSubmitError(fileErrors.join(" "));
+    } else {
+      setSubmitError(null);
+    }
+  }
+
+  function removeFile(index) {
+    setDocuments((d) => d.filter((_, i) => i !== index));
   }
 
   function validate() {
@@ -113,7 +164,7 @@ export default function NewInvestigation() {
         description: form.description.trim() || null,
         additional_info: form.additionalInfo.trim() || null,
       };
-      const record = await createInvestigation(payload);
+      const record = await createInvestigation(payload, documents);
       navigate(`/investigation/${record.id}`);
     } catch (err) {
       setSubmitError(err.message || "Could not start the investigation.");
@@ -129,7 +180,8 @@ export default function NewInvestigation() {
           <h1>Start an investigation</h1>
           <p className="muted">
             A business name is all we require. Anything else you add — links,
-            description, revenue notes — gives the agent more to work with.
+            description, documents, revenue notes — gives the agent more to work
+            with.
           </p>
         </div>
 
@@ -248,6 +300,73 @@ export default function NewInvestigation() {
             </p>
           </div>
 
+          <div className="field">
+            <label>Attach documents (optional)</label>
+            <div
+              className={`dropzone ${dragActive ? "dropzone-active" : ""}`}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragActive(true);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragActive(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragActive(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragActive(false);
+                addFiles(e.dataTransfer.files);
+              }}
+            >
+              <input
+                type="file"
+                multiple
+                accept={ALLOWED_EXTENSIONS.join(",")}
+                onChange={(e) => addFiles(e.target.files)}
+                aria-label="Upload documents"
+              />
+              <div className="dropzone-icon" aria-hidden="true">
+                📎
+              </div>
+              <p className="dropzone-title">Drag files here or click to upload</p>
+              <p className="dropzone-hint">
+                PDF, DOCX, TXT, JPG, PNG, CSV, XLSX · up to {MAX_FILE_SIZE_MB} MB
+                each
+              </p>
+            </div>
+            {documents.length > 0 && (
+              <ul className="file-list" aria-label="Selected files">
+                {documents.map((file, i) => (
+                  <li className="file-item" key={`${file.name}-${i}`}>
+                    <span className="file-icon" aria-hidden="true">
+                      {fileIcon(file.name)}
+                    </span>
+                    <span className="file-info">
+                      <span className="file-name">{file.name}</span>
+                      <span className="file-size">{formatBytes(file.size)}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="file-remove"
+                      onClick={() => removeFile(i)}
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {submitError && (
             <p className="submit-error" role="alert">
               {submitError}
@@ -337,4 +456,21 @@ function hostOf(url) {
   } catch {
     return url.replace(/^https?:\/\//i, "").split("/")[0];
   }
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileIcon(name) {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".pdf")) return "📄";
+  if (lower.endsWith(".docx") || lower.endsWith(".doc")) return "📝";
+  if (lower.endsWith(".xlsx") || lower.endsWith(".xls") || lower.endsWith(".csv"))
+    return "📊";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png"))
+    return "🖼";
+  return "📁";
 }

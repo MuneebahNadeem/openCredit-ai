@@ -1,0 +1,110 @@
+{
+  "id": "inv_86dee5d933",
+  "created_at": "2026-09-03T11:45:21.959887+00:00",
+  "started_at": "2026-09-03T11:45:21.961615+00:00",
+  "completed_at": "2026-09-03T11:45:24.332723+00:00",
+  "status": "completed",
+  "phase_label": "Investigation complete",
+  "error": null,
+  "saved": true,
+  "business": {
+    "name": "Blissful",
+    "location": null,
+    "category": null,
+    "website": "https://shopblissfulbeauty.com/",
+    "social_links": [
+      "https://www.instagram.com/blissfulbeautypakistan/?hl=en"
+    ],
+    "marketplace_links": [],
+    "description": null,
+    "additional_info": null
+  },
+  "documents": [],
+  "result": {
+    "status": "complete",
+    "searches_performed": 0,
+    "sources_examined": 2,
+    "investigated_at": "2026-09-03T11:45:24.330100Z",
+    "evidence": [
+      {
+        "field_name": "instagram_recently_active",
+        "value": "yes",
+        "unit": null,
+        "evidence_type": "observed",
+        "confidence": 0.65,
+        "source_url": "https://www.instagram.com/blissfulbeautypakistan/?hl=en",
+        "source_name": "Instagram",
+        "source_reliability": "medium",
+        "raw_snippet": "Recent activity detected",
+        "collected_at": "2026-09-03T11:45:24.314797Z"
+      }
+    ],
+    "features": [],
+    "trustworthiness": {
+      "level": "low",
+      "score": 0.3054,
+      "evidence_count": 0,
+      "explanation": "Evidence credibility is low. limited reliable evidence found."
+    },
+    "business_potential": {
+      "level": "low",
+      "score": 0.0666,
+      "evidence_count": 0,
+      "explanation": "Limited positive market signals. public sentiment is mixed or neutral."
+    },
+    "positive_signals": [],
+    "risk_signals": [],
+    "missing_information": [
+      "SECP/business registration not found",
+      "No customer reviews found",
+      "Social media presence not verified"
+    ],
+    "sources": [
+      "https://shopblissfulbeauty.com",
+      "https://www.instagram.com/blissfulbeautypakistan/?hl=en"
+    ],
+    "justification": "Trustworthiness is low (score 0.3054). business potential is low (score 0.0666). based on 1 evidence items (0 reliable).",
+    "agent_status": "complete",
+    "recommendation": "decline",
+    "analysis_context": {
+      "credibility": {
+        "source_reliability_score": 0.66,
+        "evidence_quality_score": 0.75,
+        "confidence_score": 0.65,
+        "reliable_ratio": 0.0,
+        "source_diversity_score": 1.0,
+        "corroboration_score": 0.0,
+        "evidence_depth_score": 0.31622776601683794,
+        "overall_score": 0.4439341649025257,
+        "level": "low"
+      },
+      "sentiment": {
+        "positive": 0.0,
+        "negative": 0.0,
+        "neutral": 1.0,
+        "compound": 0.0,
+        "label": "neutral"
+      }
+    },
+    "sources_detail": [
+      {
+        "url": "https://www.instagram.com/blissfulbeautypakistan/?hl=en",
+        "name": "Instagram",
+        "reliability": "medium",
+        "evidence_count": 1,
+        "evidence_fields": [
+          "instagram_recently_active"
+        ],
+        "type": "social"
+      },
+      {
+        "url": "https://shopblissfulbeauty.com",
+        "name": "shopblissfulbeauty.com",
+        "reliability": "unknown",
+        "evidence_count": 0,
+        "evidence_fields": [],
+        "type": "web"
+      }
+    ]
+  }
+}

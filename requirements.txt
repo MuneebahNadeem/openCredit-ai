@@ -7,6 +7,14 @@ pydantic==2.13.4
 pydantic-settings==2.14.2
 python-dotenv==1.2.2
 openai>=1.0.0
+python-multipart
+
+# Document processing
+pypdf
+python-docx
+openpyxl
+pillow
+pytesseract
 
 # Development / testing
 pytest==9.1.1

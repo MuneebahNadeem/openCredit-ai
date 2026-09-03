@@ -17,6 +17,7 @@ export default function Nav({ dark = true }) {
           </NavLink>
           <a href="/#how-it-works">How it works</a>
           <a href="/#example">Example report</a>
+          <NavLink to="/saved">Saved reports</NavLink>
           <NavLink to="/new" className="nav-cta">
             Start investigation
           </NavLink>

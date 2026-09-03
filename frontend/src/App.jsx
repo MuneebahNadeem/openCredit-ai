@@ -4,6 +4,7 @@ import Landing from "./pages/Landing";
 import NewInvestigation from "./pages/NewInvestigation";
 import InvestigationRoom from "./pages/InvestigationRoom";
 import ReportPage from "./pages/ReportPage";
+import SavedReports from "./pages/SavedReports";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/new" element={<NewInvestigation />} />
         <Route path="/investigation/:id" element={<InvestigationRoom />} />
         <Route path="/report/:id" element={<ReportPage />} />
+        <Route path="/saved" element={<SavedReports />} />
         <Route path="*" element={<Landing />} />
       </Routes>
     </BrowserRouter>
