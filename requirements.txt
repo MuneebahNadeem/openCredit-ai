@@ -19,7 +19,7 @@ pillow
 pytesseract
 
 # ML / risk assessment stack (Person 2)
-# Verified on Python 3.14 — full suite 587/587 passing
+# Verified on Python 3.14 — full suite 697/697 passing
 numpy==2.5.2
 pandas==3.0.5
 scikit-learn==1.9.0

@@ -4,31 +4,35 @@ This document explains every non-test source file that exists so far,
 what it does, why it exists, and what lives inside it.
 It also lists every library the project currently uses and why each one is needed.
 
+**Coverage:** `agent/` (Person 1) and `ml/` (Person 2) are documented in full
+below. Person 3's `backend/` and `frontend/` sources are not yet documented
+in this guide — see `documents/DEVELOPMENT_LOG.md` for their build history
+and `README.md` for how to run them.
+
 ---
 
 ## Libraries Required
 
-### Currently installed
+All runtime dependencies are pinned in `requirements.txt`. Everything the
+project uses today:
 
 | Library | Version | Why it is needed |
 |---|---|---|
-| `pydantic` | 2.13.5 | Data validation and modelling. Every schema in the project is a Pydantic `BaseModel`. It automatically validates types, runs custom validators, and rejects bad input before it reaches agent logic. |
-| `pytest` | 9.1.1 | Test runner. Used to run all files under `tests/`. |
-| `scikit-learn` | 1.6.1 | ML model training (RandomForest, GradientBoosting) and evaluation. |
-| `xgboost` | latest | Gradient-boosted tree model used alongside scikit-learn models. |
+| `pydantic` | 2.13.4 | Data validation and modelling. Every schema in the project is a Pydantic `BaseModel`. It automatically validates types, runs custom validators, and rejects bad input before it reaches agent logic. |
+| `fastapi` | 0.141.1 | The backend API server (Person 3). |
+| `uvicorn` | 0.52.0 | ASGI server that runs the FastAPI app (Person 3). |
+| `pydantic-settings` | 2.14.2 | Typed settings (API keys, config) for the backend (Person 3). |
+| `python-dotenv` | 1.2.2 | Loading API keys and config from a `.env` file so secrets are never hardcoded. |
+| `openai` | ≥1.0.0 | LLM provider used by the investigation agent and "Ask OpenCredit". Optional — the system runs in limited mode without a key. |
+| `python-multipart` | — | File uploads for the document-evidence endpoint (Person 3). |
+| `pypdf`, `python-docx`, `openpyxl`, `pillow`, `pytesseract` | — | Document processing for uploaded evidence (PDF / DOCX / XLSX / images + OCR) (Person 3). |
+| `numpy` | 2.5.2 | Numerical operations for feature extraction and model training. |
+| `pandas` | 3.0.5 | DataFrame-based dataset building and ML feature pipeline. |
+| `scikit-learn` | 1.9.0 | ML model training (RandomForest, GradientBoosting), evaluation metrics, and cross-validation. |
+| `xgboost` | 3.4.1 | Gradient-boosted tree model used alongside scikit-learn models. |
 | `shap` | 0.52.0 | SHAP KernelExplainer — feature importance for trustworthiness and business potential scores. |
-| `pandas` | 3.0.2 | DataFrame-based dataset building and ML feature pipeline. |
-| `numpy` | 2.4.4 | Numerical operations for feature extraction and model training. |
-
-### Will be needed in future steps (not yet installed)
-
-| Library | Why it will be needed |
-|---|---|
-| `openai` / `anthropic` | The LLM provider the agent will call in production (all LLM calls are mocked in tests today). |
-| `python-dotenv` | Loading API keys and config from a `.env` file so secrets are never hardcoded. |
-| `fastapi` | The backend API server (Person 3's responsibility). |
-| `uvicorn` | ASGI server that runs the FastAPI app. |
-| `sqlalchemy` or `asyncpg` | Database access layer (Person 3). |
+| `pytest` | 9.1.1 | Test runner. Used to run all files under `tests/`. |
+| `httpx` | ≥0.27.0 | HTTP client used by the backend test suite. |
 
 ---
 
@@ -204,7 +208,7 @@ from agent.schemas import BusinessInput, InvestigationResult, EvidenceType
 ## How to Run the Tests
 
 ```bash
-# From the repo root: C:\Users\HP\Desktop\openCredit-ai
+# From the repo root
 
 # All agent tests (schemas + config + state + tools + agent):
 python -m pytest tests/agent/ -v
@@ -221,14 +225,34 @@ python -m pytest tests/agent/test_state.py -v
 python -m pytest tests/agent/test_tools.py -v
 python -m pytest tests/agent/test_agent.py -v
 
-# All ML tests:
+# All ML tests (Person 2):
 python -m pytest tests/ml/ -v
+
+# ML per module:
+python -m pytest tests/ml/test_feature_extractor.py -v
+python -m pytest tests/ml/test_sentiment.py -v
+python -m pytest tests/ml/test_credibility_scorer.py -v
+python -m pytest tests/ml/test_risk_engine.py -v            # incl. hybrid blend
+python -m pytest tests/ml/test_assessment.py -v
+python -m pytest tests/ml/test_explainability.py -v
+python -m pytest tests/ml/test_model_trainer.py -v
+python -m pytest tests/ml/test_model_evaluator.py -v
+python -m pytest tests/ml/test_model_predictor.py -v        # trains its own models
 
 # Everything:
 python -m pytest tests/ -v
 ```
 
-Expected result: **532 passed, 0 failures**
+Expected result: **697 passed, 0 failures** (ml 405 · agent 237 · backend 55).
+
+Notes:
+- `tests/ml/conftest.py` pins the default predictor to an unavailable stub,
+  so ordinary ML tests are deterministic (pure rule scores) regardless of
+  whether `data/models/` exists on the machine; hybrid behaviour has its own
+  explicit tests.
+- `test_model_predictor.py` and `test_model_evaluator.py` train small models
+  into `data/models/` while running. To restore the production artifacts
+  afterwards: `python -c "from ml.model_trainer import train_all_models; train_all_models()"`.
 
 ---
 
@@ -386,6 +410,199 @@ All 3 external dependencies (LLM, search, fetch) are injectable — pass mock fu
 
 ---
 
+## Person 2 ML Files
+
+The ML layer turns Person 1's `InvestigationResult` into the two final
+assessments. It is a **hybrid**: a transparent rule engine (the safety net,
+always available) blended 50/50 with trained classifiers (loaded from
+`data/models/` when present). All modules degrade gracefully — an ML failure
+never fails an investigation.
+
+```text
+InvestigationResult
+        ↓
+  feature_extractor     60 numeric features
+  sentiment             lexicon sentiment of evidence text
+  credibility_scorer    7-dimension evidence credibility
+        ↓
+  risk_engine           hybrid: rule scores + model probabilities
+        ↓
+  assessment            justification + recommendation (Person 3 entry point)
+        ↓
+  explainability        SHAP drivers (optional, backend-side)
+```
+
+Training/evaluation (offline, not in the request path):
+`dataset` → `model_trainer` → `model_evaluator` → `data/models/*.pkl` →
+`model_predictor` (loaded at inference time).
+
+---
+
+### `ml/feature_extractor.py`
+
+**What it is:** The bridge between structured evidence and numbers.
+
+**What it does:** `extract_features(result) → dict[str, float]` converts an
+`InvestigationResult` into exactly **60 numeric features** — the training
+schema for the models and the input for the rule engine. Covers:
+
+- Evidence counts and ratios (total, reliable, corroborated, per reliability level, per evidence type)
+- Signal ratios (positive/risk/missing, normalised)
+- Confidence statistics (mean/weighted by reliability)
+- Feature-category counts (audience, engagement, demand, growth, market presence, reputation, …)
+- Investigation metadata (searches performed, sources examined, unique sources)
+- One-hot investigation-status flags
+- Self-reported fields parsed by `UserInputParser` (revenue, orders, years in business, staff)
+
+**Why it matters:** the extractor's key order *is* the training column order —
+`ml.model_predictor.canonical_feature_columns()` relies on this to align live
+predictions with what the models were fitted on.
+
+---
+
+### `ml/sentiment.py`
+
+**What it is:** Lexicon-based sentiment analysis of evidence text.
+
+**What it does:** `analyze_sentiment(text) → SentimentScore` scores one text;
+`score_evidence_texts(evidence) → SentimentScore` aggregates every
+`raw_snippet` on the evidence list. Returns positive/negative/neutral
+proportions, a `compound` score in [-1, +1], and a label.
+
+**Passes its data to:** the risk engine uses `compound` (clamped to [0, 1]) as
+one weighted factor in both assessments; `explainability` uses the same score.
+
+---
+
+### `ml/credibility_scorer.py`
+
+**What it is:** How trustworthy the *evidence itself* is.
+
+**What it does:** `score_credibility(result) → CredibilityScore` computes 7
+sub-scores — source reliability, evidence quality, confidence, reliable ratio,
+source diversity, corroboration, evidence depth — and combines them into an
+`overall_score` (0.0–1.0) with a `high`/`moderate`/`low` level.
+
+**Passes its data to:** the risk engine weights `overall_score` at 35% of
+trustworthiness and 15% of business potential.
+
+---
+
+### `ml/risk_engine.py`
+
+**What it is:** The central scoring module — the hybrid brain.
+
+**What it does:** `assess_risk(result, predictor=None, model_weight=0.5) →
+RiskAssessment` orchestrates the three modules above and produces the two
+`AssessmentScore` objects directly compatible with `InvestigationResult`:
+
+1. **Rule scores** (deterministic, always available):
+   - *Trustworthiness* — credibility 35%, sentiment 15%, positive signals 15%, inverted risk signals 15%, reliable evidence 10%, source quality 10%
+   - *Business potential* — positive signals 25%, sentiment 20%, credibility 15%, reliable evidence 15%, business features 25%
+2. **Model scores** — `ModelPredictor.predict(features)` returns
+   `predict_proba` scores for both targets (see below).
+3. **Blend** — `final = model_weight × model + (1 − model_weight) × rule`,
+   clamped to [0, 1], then mapped to a level (high ≥ 0.70, moderate ≥ 0.45,
+   otherwise low).
+
+**Graceful degradation:** models missing/corrupt → pure rule scores;
+predictor raises → caught, pure rule scores; no evidence at all → early
+`INSUFFICIENT_EVIDENCE` return (the predictor is never even called).
+
+**Transparency:** the returned `RiskAssessment.model_prediction` carries the
+full prediction (scores, model names, availability, reason), and both
+explanations disclose when a trained model contributed.
+
+---
+
+### `ml/assessment.py`
+
+**What it is:** The final wrapper — Person 3's single entry point.
+
+**What it does:** `generate_assessment(result) → InvestigationResult` runs the
+risk engine, then generates a two-line evidence-based `justification` and a
+`recommendation` (`approve` / `approve_with_conditions` / `decline` /
+`further_review` / `insufficient_data`). Returns a **new** result via
+`model_copy(update={...})` — the input is never mutated.
+
+`generate_recommendation(risk)` is also exported separately; the backend calls
+it to build its response payload.
+
+---
+
+### `ml/explainability.py`
+
+**What it is:** SHAP-based "why did it score this way?" report.
+
+**What it does:** `explain_assessment(result) → ExplainabilityReport` wraps
+the *rule* scoring functions in SHAP's `KernelExplainer` (they are
+deterministic functions, so Shapley values are exact) and returns per-feature
+signed contributions, sorted by impact, plus baselines and predicted scores
+for both assessments. `format_report()` renders a human-readable summary.
+
+---
+
+### `ml/dataset.py`
+
+**What it is:** Synthetic training data generator.
+
+**What it does:** `generate_synthetic_dataset(n_samples, seed)` builds a
+DataFrame of plausible investigations from profile archetypes
+(trustworthy / medium / risky) and derives `trust_label` and
+`potential_label` as deterministic functions of the 60 features.
+`build_dataset(df=None, ...)` uses a real `InvestigationResult` list when
+available, falling back to synthetic. `split_features_labels(df, target)` and
+`get_feature_columns(df)` feed the trainer.
+
+**Important:** the labels are generator rules, not real-world outcomes — see
+the caveat in `documents/MODEL_EVALUATION.md`.
+
+---
+
+### `ml/model_trainer.py`
+
+**What it is:** Trains and persists the six candidate models.
+
+**What it does:** `train_all_models(...) → TrainingReport` fits
+`random_forest`, `gradient_boosting`, and `xgboost` against both targets with
+a fixed protocol (seed 42, stratified 80/20 split), reports accuracy /
+ROC-AUC / log loss, and saves each classifier to
+`data/models/<name>__<target>.pkl`. `load_model(name, target)` restores a
+saved artifact; `predict` / `predict_proba` are convenience wrappers.
+
+---
+
+### `ml/model_evaluator.py`
+
+**What it is:** Head-to-head comparison of the saved artifacts.
+
+**What it does:** `evaluate_saved_models(...)` loads the six `.pkl` files
+(what production actually uses), scores accuracy / precision / recall / F1 /
+ROC-AUC / log loss / Brier, runs 5-fold CV on cloned estimators, extracts
+confusion counts and tree feature importances, and produces an
+`EvaluationReport` with rankings. `write_markdown_report(report)` writes
+`documents/MODEL_EVALUATION.md`. Winner (synthetic data): `random_forest`
+for both targets — with an explicit synthetic-data caveat, because all three
+algorithms reach perfect metrics when labels are deterministic.
+
+---
+
+### `ml/model_predictor.py`
+
+**What it is:** Production inference — the trained models in the live path.
+
+**What it does:** `ModelPredictor` lazy-loads the saved artifacts (default
+`random_forest` for both targets, the evaluation winners), thread-safe via
+the process-wide singleton `get_predictor()`. `predict(features) →
+ModelPrediction` aligns any feature dict to the canonical 60-column training
+schema (missing keys → 0.0, extras ignored) and returns calibrated
+probabilities for both targets plus availability info. If the artifacts are
+missing or corrupt, `predict()` returns `available=False` with the reason —
+it never raises, so the hybrid blend in the risk engine falls back to pure
+rule scores.
+
+---
+
 ## Complete Data Flow
 
 ```
@@ -404,6 +621,10 @@ User submits BusinessInput
    InvestigationResult (evidence + features, no assessments yet)
         ↓
    [ml.assessment.generate_assessment()]
+   [ml.risk_engine.assess_risk()  ← hybrid]
+        ├─ feature_extractor → 60 numeric features
+        ├─ sentiment + credibility_scorer → rule scores (safety net)
+        └─ model_predictor → saved random_forest probabilities
    InvestigationResult with trustworthiness + business_potential assessments
         ↓
    [ml.explainability.explain_assessment()]
@@ -411,4 +632,12 @@ User submits BusinessInput
         ↓
    JSON output → backend / frontend
 ```
+
+**Backend integration note:** `backend/app/services/adapters/ml_adapter.py`
+calls `generate_assessment()`, `assess_risk()`, and `generate_recommendation()`
+— the hybrid is picked up automatically. No backend changes are required to
+use the trained models, and the system keeps working if `data/models/` is
+absent (pure rule scores).
+
+
 

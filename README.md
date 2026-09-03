@@ -346,10 +346,14 @@ The system provides **decision support**, not a guaranteed investment or lending
 opencredit-ai/
 ├── frontend/   → Person 3 — React + Vite SPA
 ├── backend/    → Person 3 — FastAPI service
-├── ml/         → Person 2 — features, sentiment, credibility, risk engine
+├── ml/         → Person 2 — ML pipeline: feature extractor, sentiment,
+│                 credibility scorer, hybrid risk engine, assessment wrapper,
+│                 SHAP explainability, dataset, model trainer/evaluator/predictor
 ├── agent/      → Person 1 — investigation agent and tools
-├── data/       → Shared — investigation records (data/investigations/), models
-├── documents/  → Shared — DEVELOPMENT_LOG.md
+├── data/       → Shared — investigation records (data/investigations/),
+│                 trained models (data/models/)
+├── documents/  → Shared — DEVELOPMENT_LOG.md, CODEBASE_GUIDE.md,
+│                 MODEL_EVALUATION.md
 ├── tests/      → Shared — tests/{agent,ml,backend}
 ├── docker/     → Shared
 └── README.md   → Shared
@@ -412,10 +416,33 @@ on port 8000, so both processes must be running.
 ## 3. Run the tests
 
 ```bash
-python -m pytest tests/backend/ -v     # Person 3 — API + services (54 tests)
-python -m pytest tests/agent/ -v       # Person 1
-python -m pytest tests/ml/ -v          # Person 2 (needs numpy/shap installed)
+python -m pytest tests/backend/ -v     # Person 3 — API + services (55 tests)
+python -m pytest tests/agent/ -v       # Person 1 — agent + tools (237 tests)
+python -m pytest tests/ml/ -v          # Person 2 — ML pipeline (405 tests)
+
+python -m pytest tests/ -v             # Everything: 697 tests
 ```
+
+All dependencies (including the ML stack) come from `requirements.txt`.
+
+## 4. ML models (Person 2)
+
+The risk engine blends transparent rules (50%) with trained classifiers (50%).
+The saved models in `data/models/` are optional — if they are missing, the
+system automatically falls back to pure rule-based scores.
+
+```bash
+# Retrain the six models on synthetic data (300 samples, seed 42):
+python -c "from ml.model_trainer import train_all_models; train_all_models()"
+
+# Regenerate the head-to-head evaluation report:
+python -c "from ml.model_evaluator import evaluate_saved_models, write_markdown_report; write_markdown_report(evaluate_saved_models())"
+```
+
+The models are trained on synthetic data (see the caveat in
+`documents/MODEL_EVALUATION.md`) — treat them as one input to the assessment,
+never the sole basis of a decision. Module-by-module details are in
+`documents/CODEBASE_GUIDE.md`.
 
 ## Demo flow (for judges / walkthrough)
 

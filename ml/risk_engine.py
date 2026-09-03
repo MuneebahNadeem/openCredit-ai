@@ -4,9 +4,10 @@ Risk Engine — central scoring module that combines all ML components.
 Takes an ``InvestigationResult`` from Person 1 and produces the two main
 assessments (trustworthiness and business potential) by orchestrating:
 
-1. **Feature extraction** — numeric evidence features (44 features)
+1. **Feature extraction** — numeric evidence features (60 features)
 2. **Sentiment analysis** — text-based evidence sentiment
 3. **Credibility scoring** — evidence reliability assessment
+4. **Trained models** — saved classifiers blended with the rule scores
 
 The output is a ``RiskAssessment`` containing two ``AssessmentScore``
 objects that are directly compatible with the ``InvestigationResult``
@@ -24,7 +25,7 @@ Usage::
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from agent.schemas.result import (
     AssessmentLevel,
@@ -33,6 +34,7 @@ from agent.schemas.result import (
 )
 from ml.credibility_scorer import CredibilityScore, score_credibility
 from ml.feature_extractor import FeatureDict, extract_features
+from ml.model_predictor import ModelPrediction, ModelPredictor, get_predictor
 from ml.sentiment import SentimentScore, score_evidence_texts
 
 
@@ -47,6 +49,34 @@ class RiskAssessment:
     credibility: CredibilityScore
     sentiment: SentimentScore
     features: FeatureDict
+    # The trained-model prediction that fed the hybrid blend (None when
+    # the models were unavailable or there was no evidence to score).
+    model_prediction: Optional[ModelPrediction] = None
+
+
+# ── Hybrid blend ─────────────────────────────────────────────────────────────
+
+# Weight of the trained model in the final score; the rule engine keeps
+# the remainder.  0.5 = equal hybrid.  The models are synthetic-trained,
+# so the rule engine remains the evidence-grounded safety net.
+_MODEL_WEIGHT = 0.5
+
+
+def _blend_scores(
+    rule_score: float,
+    model_score: Optional[float],
+    model_weight: float,
+) -> float:
+    """
+    Blend a rule-engine score with a trained-model score.
+
+    Falls back to the pure rule score when no model prediction is
+    available — the rule engine is the safety net.
+    """
+    if model_score is None:
+        return rule_score
+    blended = model_weight * model_score + (1.0 - model_weight) * rule_score
+    return max(0.0, min(1.0, blended))
 
 
 # ── Score-to-level mapping ───────────────────────────────────────────────────
@@ -68,6 +98,7 @@ def _score_to_level(score: float) -> AssessmentLevel:
 
 def _explain_trustworthiness(
     score: float, credibility: CredibilityScore, features: FeatureDict,
+    model_used: bool = False,
 ) -> str:
     """Generate a plain-English explanation for the trustworthiness assessment."""
     parts: List[str] = []
@@ -93,11 +124,15 @@ def _explain_trustworthiness(
     elif risk_ratio > 0.0:
         parts.append("some risk signals present")
 
+    if model_used:
+        parts.append("score blends evidence-based rules with a trained ML model")
+
     return ". ".join(parts) + "."
 
 
 def _explain_business_potential(
     score: float, sentiment: SentimentScore, features: FeatureDict,
+    model_used: bool = False,
 ) -> str:
     """Generate a plain-English explanation for the business potential assessment."""
     parts: List[str] = []
@@ -127,6 +162,9 @@ def _explain_business_potential(
         parts.append("multiple business potential indicators identified")
     elif potential_signals >= 1.0:
         parts.append("some business potential indicators found")
+
+    if model_used:
+        parts.append("score blends evidence-based rules with a trained ML model")
 
     return ". ".join(parts) + "."
 
@@ -232,7 +270,11 @@ def _score_business_potential(
 
 # ── Main entry point ─────────────────────────────────────────────────────────
 
-def assess_risk(result: InvestigationResult) -> RiskAssessment:
+def assess_risk(
+    result: InvestigationResult,
+    predictor: Optional[ModelPredictor] = None,
+    model_weight: float = _MODEL_WEIGHT,
+) -> RiskAssessment:
     """
     Produce a complete risk assessment for an investigation.
 
@@ -242,9 +284,32 @@ def assess_risk(result: InvestigationResult) -> RiskAssessment:
     and ``business_potential`` fields are ``AssessmentScore`` objects
     directly compatible with ``InvestigationResult``.
 
+    **Hybrid scoring:** each final score blends the rule-engine score with
+    the trained-model prediction (``model_weight`` = model share, default
+    0.5).  When the saved models are unavailable — or ``predictor`` returns
+    an unavailable prediction — the pure rule score is used, so the engine
+    degrades gracefully and never fails an investigation.
+
+    Parameters
+    ----------
+    result:
+        The investigation output from Person 1's agent.
+    predictor:
+        The model predictor to use.  ``None`` (default) uses the
+        process-wide singleton, which loads the saved artifacts from
+        ``data/models/`` on first use.  Inject a stub in tests.
+    model_weight:
+        Weight of the model score in the blend (0.0 = pure rules,
+        1.0 = pure model).  Must be within [0.0, 1.0].
+
     When no evidence is present, both assessments return
     ``INSUFFICIENT_EVIDENCE`` with no numeric score.
     """
+    if not 0.0 <= model_weight <= 1.0:
+        raise ValueError(
+            f"model_weight must be within [0.0, 1.0], got {model_weight}"
+        )
+
     # ── Run sub-modules ──────────────────────────────────────────────────
     features = extract_features(result)
     sentiment = score_evidence_texts(result.evidence)
@@ -268,16 +333,37 @@ def assess_risk(result: InvestigationResult) -> RiskAssessment:
             features=features,
         )
 
+    # ── Trained-model prediction (hybrid blend) ──────────────────────────
+    if predictor is None:
+        predictor = get_predictor()
+    # Defensive: a broken predictor must never fail an investigation.
+    try:
+        prediction = predictor.predict(features)
+    except Exception:
+        prediction = ModelPrediction(
+            trust_score=None, potential_score=None,
+            trust_model=None, potential_model=None,
+            available=False, reason="predictor raised during prediction",
+        )
+    model_used = prediction.available
+
     # ── Compute scores ───────────────────────────────────────────────────
-    trust_raw = _score_trustworthiness(features, sentiment, credibility)
-    potential_raw = _score_business_potential(features, sentiment, credibility)
+    trust_rule = _score_trustworthiness(features, sentiment, credibility)
+    potential_rule = _score_business_potential(features, sentiment, credibility)
+
+    trust_raw = _blend_scores(trust_rule, prediction.trust_score, model_weight)
+    potential_raw = _blend_scores(
+        potential_rule, prediction.potential_score, model_weight,
+    )
 
     trust_level = _score_to_level(trust_raw)
     potential_level = _score_to_level(potential_raw)
 
-    trust_explanation = _explain_trustworthiness(trust_raw, credibility, features)
+    trust_explanation = _explain_trustworthiness(
+        trust_raw, credibility, features, model_used=model_used,
+    )
     potential_explanation = _explain_business_potential(
-        potential_raw, sentiment, features,
+        potential_raw, sentiment, features, model_used=model_used,
     )
 
     trustworthiness = AssessmentScore(
@@ -300,4 +386,5 @@ def assess_risk(result: InvestigationResult) -> RiskAssessment:
         credibility=credibility,
         sentiment=sentiment,
         features=features,
+        model_prediction=prediction,
     )

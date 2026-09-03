@@ -22,15 +22,18 @@ from agent.schemas.result import (
 from ml.risk_engine import (
     RiskAssessment,
     assess_risk,
+    _MODEL_WEIGHT,
+    _blend_scores,
     _score_to_level,
     _score_trustworthiness,
     _score_business_potential,
     _explain_trustworthiness,
     _explain_business_potential,
 )
+from ml.model_predictor import ModelPrediction
 from ml.credibility_scorer import score_credibility, CredibilityScore
 from ml.feature_extractor import extract_features
-from ml.sentiment import analyze_sentiment, SentimentScore
+from ml.sentiment import analyze_sentiment, score_evidence_texts, SentimentScore
 
 
 # ── Fixtures / helpers ────────────────────────────────────────────────────────
@@ -458,3 +461,194 @@ class TestAssessRisk:
         expected = len(r.reliable_evidence())
         assert a.trustworthiness.evidence_count == expected
         assert a.business_potential.evidence_count == expected
+
+
+# ── Hybrid blend (trained-model integration) ─────────────────────────────────
+
+class _StubPredictor:
+    """Configurable stand-in for ModelPredictor; records predict() calls."""
+
+    def __init__(self, trust=0.8, potential=0.8,
+                 available=True, raise_on_predict=False):
+        self.trust = trust
+        self.potential = potential
+        self.available = available
+        self.raise_on_predict = raise_on_predict
+        self.calls = 0
+
+    def predict(self, features):
+        self.calls += 1
+        if self.raise_on_predict:
+            raise RuntimeError("stub predictor exploded")
+        return ModelPrediction(
+            trust_score=self.trust if self.available else None,
+            potential_score=self.potential if self.available else None,
+            trust_model="stub_trust" if self.available else None,
+            potential_model="stub_potential" if self.available else None,
+            available=self.available,
+            reason="" if self.available else "stub unavailable",
+        )
+
+
+def _rule_scores(r: InvestigationResult):
+    """Pure rule-engine scores for a result (no model involvement)."""
+    features = extract_features(r)
+    sentiment = score_evidence_texts(r.evidence)
+    credibility = score_credibility(r)
+    return (
+        _score_trustworthiness(features, sentiment, credibility),
+        _score_business_potential(features, sentiment, credibility),
+    )
+
+
+class TestBlendScores:
+
+    def test_no_model_score_returns_rule_score(self):
+        assert _blend_scores(0.72, None, 0.5) == pytest.approx(0.72)
+
+    def test_equal_weights_average(self):
+        assert _blend_scores(0.6, 0.8, 0.5) == pytest.approx(0.7)
+
+    def test_zero_weight_is_pure_rules(self):
+        assert _blend_scores(0.6, 0.99, 0.0) == pytest.approx(0.6)
+
+    def test_one_weight_is_pure_model(self):
+        assert _blend_scores(0.6, 0.99, 1.0) == pytest.approx(0.99)
+
+    def test_quarter_weight(self):
+        assert _blend_scores(0.4, 0.8, 0.25) == pytest.approx(0.5)
+
+    def test_result_clamped_to_unit_interval(self):
+        assert _blend_scores(1.0, 1.0, 0.5) == 1.0
+        assert _blend_scores(0.0, 0.0, 0.5) == 0.0
+
+
+class TestHybridBlend:
+
+    def test_default_model_weight_is_half(self):
+        assert _MODEL_WEIGHT == 0.5
+
+    def test_default_predictor_used_when_none_passed(self):
+        """The conftest patches get_predictor() to a null predictor, so the
+        default path must yield the same scores as an explicitly
+        unavailable predictor."""
+        r = make_result()
+        default = assess_risk(r)
+        explicit = assess_risk(r, predictor=_StubPredictor(available=False))
+        assert default.trustworthiness.score == explicit.trustworthiness.score
+        assert default.business_potential.score == explicit.business_potential.score
+
+    def test_unavailable_model_falls_back_to_rule_scores(self):
+        r = make_result()
+        trust_rule, potential_rule = _rule_scores(r)
+        a = assess_risk(r, predictor=_StubPredictor(available=False))
+        assert a.trustworthiness.score == pytest.approx(round(trust_rule, 4))
+        assert a.business_potential.score == pytest.approx(round(potential_rule, 4))
+
+    def test_blended_score_math(self):
+        r = make_result()
+        trust_rule, potential_rule = _rule_scores(r)
+        a = assess_risk(r, predictor=_StubPredictor(trust=0.9, potential=0.1))
+        assert a.trustworthiness.score == pytest.approx(
+            round(0.5 * 0.9 + 0.5 * trust_rule, 4)
+        )
+        assert a.business_potential.score == pytest.approx(
+            round(0.5 * 0.1 + 0.5 * potential_rule, 4)
+        )
+
+    def test_model_weight_zero_is_pure_rules(self):
+        r = make_result()
+        trust_rule, potential_rule = _rule_scores(r)
+        a = assess_risk(
+            r, predictor=_StubPredictor(trust=1.0, potential=1.0),
+            model_weight=0.0,
+        )
+        assert a.trustworthiness.score == pytest.approx(round(trust_rule, 4))
+        assert a.business_potential.score == pytest.approx(round(potential_rule, 4))
+
+    def test_model_weight_one_is_pure_model(self):
+        r = make_result()
+        a = assess_risk(
+            r, predictor=_StubPredictor(trust=0.83, potential=0.27),
+            model_weight=1.0,
+        )
+        assert a.trustworthiness.score == pytest.approx(0.83)
+        assert a.business_potential.score == pytest.approx(0.27)
+
+    def test_model_weight_below_zero_raises(self):
+        with pytest.raises(ValueError):
+            assess_risk(make_result(), model_weight=-0.01)
+
+    def test_model_weight_above_one_raises(self):
+        with pytest.raises(ValueError):
+            assess_risk(make_result(), model_weight=1.01)
+
+    def test_boundary_weights_accepted(self):
+        r = make_result()
+        assess_risk(r, model_weight=0.0)
+        assess_risk(r, model_weight=1.0)
+
+    def test_model_prediction_attached(self):
+        r = make_result()
+        a = assess_risk(r, predictor=_StubPredictor(trust=0.9, potential=0.6))
+        assert a.model_prediction is not None
+        assert a.model_prediction.available is True
+        assert a.model_prediction.trust_model == "stub_trust"
+        assert a.model_prediction.potential_model == "stub_potential"
+
+    def test_unavailable_prediction_attached_with_reason(self):
+        r = make_result()
+        a = assess_risk(r, predictor=_StubPredictor(available=False))
+        assert a.model_prediction is not None
+        assert a.model_prediction.available is False
+        assert a.model_prediction.reason == "stub unavailable"
+
+    def test_raising_predictor_falls_back_to_rules(self):
+        r = make_result()
+        trust_rule, potential_rule = _rule_scores(r)
+        a = assess_risk(r, predictor=_StubPredictor(raise_on_predict=True))
+        assert a.model_prediction.available is False
+        assert "raised" in a.model_prediction.reason
+        assert a.trustworthiness.score == pytest.approx(round(trust_rule, 4))
+        assert a.business_potential.score == pytest.approx(round(potential_rule, 4))
+
+    def test_no_evidence_never_calls_predictor(self):
+        r = make_result(evidence=[], features=[],
+                        positive_signals=[], risk_signals=[])
+        stub = _StubPredictor()
+        a = assess_risk(r, predictor=stub)
+        assert stub.calls == 0
+        assert a.trustworthiness.level == AssessmentLevel.INSUFFICIENT_EVIDENCE
+        assert a.model_prediction is None
+
+    def test_explanation_discloses_model_use(self):
+        r = make_result()
+        used = assess_risk(r, predictor=_StubPredictor())
+        assert "trained ML model" in used.trustworthiness.explanation
+        assert "trained ML model" in used.business_potential.explanation
+
+    def test_explanation_silent_without_model(self):
+        r = make_result()
+        unused = assess_risk(r, predictor=_StubPredictor(available=False))
+        assert "trained ML model" not in unused.trustworthiness.explanation
+        assert "trained ML model" not in unused.business_potential.explanation
+
+    def test_blended_scores_stay_bounded(self):
+        """Extreme model scores must never push the blend out of [0, 1]."""
+        r = make_result()
+        for extreme in (0.0, 1.0):
+            a = assess_risk(
+                r, predictor=_StubPredictor(trust=extreme, potential=extreme),
+            )
+            assert 0.0 <= a.trustworthiness.score <= 1.0
+            assert 0.0 <= a.business_potential.score <= 1.0
+
+    def test_model_moves_score_in_both_directions(self):
+        """A confident model should move the blended score up and down —
+        that is the point of the hybrid."""
+        r = make_result()
+        rule = assess_risk(r, predictor=_StubPredictor(available=False))
+        up = assess_risk(r, predictor=_StubPredictor(trust=1.0, potential=1.0))
+        down = assess_risk(r, predictor=_StubPredictor(trust=0.0, potential=0.0))
+        assert up.trustworthiness.score > rule.trustworthiness.score
+        assert down.trustworthiness.score < rule.trustworthiness.score

@@ -690,3 +690,70 @@ Wire the trained models into live inference (blend model predictions with the ru
 
 ---
 
+## Step 13: Hybrid Inference — Trained Models Wired into the Risk Engine (Person 2)
+**Date:** 2026-09-03
+**Status:** ✅ Complete — 51 new tests (full suite 697/697)
+
+### What was built
+- `ml/model_predictor.py` (224 lines) — production inference over the saved models
+- `ml/risk_engine.py` — hybrid blend of rule scores + model probabilities in `assess_risk()`
+- `tests/ml/test_model_predictor.py` (366 lines) — 28 tests
+- `tests/ml/test_risk_engine.py` — +23 hybrid-blend tests (52 total in file)
+- `tests/ml/conftest.py` — determinism guard for the ML suite
+
+### Module overview
+`ModelPredictor` lazy-loads the saved artifacts from `data/models/` (default `random_forest` for both targets — the evaluation winners from Step 12b), thread-safe via a process-wide singleton `get_predictor()`. `canonical_feature_columns()` derives the 60-column training schema directly from `extract_features()` key order, so predictions always align with what the models were fitted on. `predict(features)` returns a frozen `ModelPrediction` (trust/potential probabilities, model names, availability, reason).
+
+### Hybrid design (decision: hybrid with rules as safety net)
+`assess_risk(result, predictor=None, model_weight=0.5)` — each final score = `model_weight × model probability + (1 − model_weight) × rule score`. Graceful degradation at every level:
+
+- Models missing/corrupt on disk → predictor returns `available=False` → pure rule scores
+- Predictor raises mid-prediction → caught, pure rule scores (an ML failure must never fail an investigation)
+- No evidence → early `INSUFFICIENT_EVIDENCE` return, predictor never called
+
+Transparency: `RiskAssessment.model_prediction` carries the full prediction; explanations append "score blends evidence-based rules with a trained ML model" whenever the models actually contributed. **Person 3's backend needed zero changes** — `generate_assessment()` flows through `assess_risk()` and picks the hybrid up automatically.
+
+### Blend numbers (production models, 300 samples, seed 42)
+| Fixture | Rule-only trust | Model trust | Blended trust | Rule-only potential | Model potential | Blended potential | Recommendation |
+|---|---|---|---|---|---|---|---|
+| Good business | 0.7164 (high) | 0.9400 | 0.8282 (high) | 0.7106 (high) | 0.5200 | 0.6153 (moderate) | approve_with_conditions |
+| Risky business | 0.1030 (low) | 0.2600 | 0.1815 (low) | 0.0441 (low) | 0.1500 | 0.0971 (low) | decline |
+
+Note: the model is conservative on potential for feature-light fixtures, pulling borderline-high potentials into "moderate" (→ conditional approval) — defensible for a lending product; the rules remain the evidence-grounded floor.
+
+### Test determinism
+`tests/ml/conftest.py` patches the default predictor to an unavailable stub, so every pre-existing `assess_risk()` test keeps asserting pure rule scores regardless of whether `data/models/*.pkl` exist on the machine. Hybrid behaviour is covered explicitly with injected stub predictors plus end-to-end tests against real trained models.
+
+### How to run
+```bash
+python -m pytest tests/ml/test_model_predictor.py tests/ml/test_risk_engine.py -v
+
+# Sanity-check the live hybrid path:
+python -c "from ml.model_predictor import get_predictor; print(get_predictor().predict({}))"
+```
+
+### Next for Person 2
+Documentation close-out: reflect the full ML pipeline (extractor → trainer → evaluator → predictor → hybrid engine) in `README.md` / `documents/CODEBASE_GUIDE.md`. Long-term: retrain on real labeled investigations and re-run the evaluator before trusting model weights in production.
+
+---
+
+## Step 14: Documentation Close-Out — ML Pipeline Documented (Person 2)
+**Date:** 2026-09-03
+**Status:** ✅ Complete — docs only, no code changes (suite still 697/697)
+
+### What was updated
+- `documents/CODEBASE_GUIDE.md` — added a full "Person 2 ML Files" section (all 10 `ml/` modules, in pipeline order), refreshed the libraries table to match `requirements.txt` (backend + document-processing + ML stack, pinned versions), removed the stale "will be needed in future" table, updated the Complete Data Flow to show the hybrid path with a backend-integration note, and refreshed the test section (697 tests, per-module commands, conftest determinism note, model-restore note)
+- `README.md` — updated the repository-structure entry for `ml/` (full pipeline listing), fixed per-person test counts (backend 55 · agent 237 · ml 405 = 697), added "4. ML models (Person 2)" run section: hybrid blend description, model-optional fallback note, retrain + evaluation-report commands, synthetic-data caveat pointer
+- `requirements.txt` — updated the ML-stack comment (587 → 697 tests passing)
+
+### Key facts now documented for the team
+- The hybrid: rules 50% + models 50%, models optional, graceful fallback to pure rules
+- `data/models/` is restorable with one command after test runs overwrite it
+- `tests/ml/conftest.py` keeps ordinary ML tests deterministic
+- Person 3 needs zero backend changes to benefit from the trained models
+
+### Person 2 status against the architecture
+**100%.** All ML responsibilities are implemented, tested, wired into production, and documented: feature engineering (60 features), sentiment, credibility, hybrid risk engine, assessment wrapper with justification/recommendation, SHAP explainability, dataset + training (6 models), evaluation (with honest synthetic caveat), and live inference. Only long-term item remains: retrain on real labeled data when available.
+
+---
+
