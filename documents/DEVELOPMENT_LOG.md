@@ -483,15 +483,27 @@ python -m pytest tests/ml/ -v
 
 ---
 
-## Next steps (Person 2)
+## Step 11b: Dataset Preparation + Model Training (Person 2)
+**Status:** ✅ Complete — 52 tests passing
+*(Entry backfilled 2026-09-03 — the step was completed earlier but its log entry was never written.)*
 
-**Step 11b: Dataset preparation + model training (ml/dataset.py + ml/model_trainer.py)**
-- `ml/dataset.py`: converts list of `InvestigationResult` + labels into a pandas DataFrame of 60 features. Includes a synthetic data generator for development/testing — structurally identical to real data, swap the generator for real data and rerun with zero code changes.
-- `ml/model_trainer.py`: trains Random Forest, Gradient Boosting, XGBoost on the 60 features, persists models to `data/models/`.
+### What was built
+- `ml/dataset.py` (495 lines) — converts `InvestigationResult` objects into a training-ready pandas DataFrame:
+  - `build_dataset(labeled_samples)` — real-data path: list of `(result, trust_label, potential_label)` pairs → DataFrame of 60 features + both labels + `business_name`
+  - `generate_synthetic_dataset(n_samples)` — synthetic Pakistani business profiles, structurally identical to real data; swap the generator for real data with zero other code changes
+- `ml/model_trainer.py` (299 lines) — trains and persists 6 models:
+  - Random Forest, Gradient Boosting, XGBoost × `trust_label` / `potential_label`
+  - Per-model accuracy, F1, AUC-ROC and cross-validation in a training report; models saved to `data/models/`
+- `tests/ml/test_model_trainer.py` — 52 tests
 
-**Step 12b: Model comparison and evaluation (ml/model_evaluator.py)**
-- Compare all trained models on accuracy, F1, AUC-ROC, feature importance.
-- Produce an evaluation report.
+**Trained artifacts:** `data/models/` — 6 `.pkl` files (3 algorithms × 2 targets)
+
+### How to run
+```bash
+python -m pytest tests/ml/test_model_trainer.py -v
+```
+
+**Next for Person 2:** Step 12b — model comparison and evaluation (`ml/model_evaluator.py`).
 
 ---
 
@@ -615,6 +627,66 @@ Test data (`inv_1ac5027819`, `inv_2e758d4286`) was deleted after verification; d
 ### Full-suite test result (this date)
 `python -m pytest tests/` → **492 passed** (1 deprecation warning from FastAPI's TestClient).
 Note: `tests/ml/test_explainability.py` and `tests/ml/test_model_trainer.py` fail collection in this environment (`ModuleNotFoundError: No module named 'numpy'` — Person 2's shap/sklearn stack is not installed on this Python 3.14 machine). Unrelated to Person 3 code; both modules are excluded from the 492 count.
+
+---
+
+## Step 12c: ML Stack Added to requirements.txt (Person 2)
+**Date:** 2026-09-03
+**Status:** ✅ Complete — full suite 587/587 passing
+
+### What was done
+- Restored the repo venv (Python 3.14) with the full dependency stack installed
+- Added the ML/risk-assessment dependencies to `requirements.txt` with exact pins verified on Python 3.14:
+  - `numpy==2.5.2`, `pandas==3.0.5`, `scikit-learn==1.9.0`, `xgboost==3.4.1`, `shap==0.52.0`
+- A fresh `pip install -r requirements.txt` now installs everything needed to run the backend, the agent, the ML layer, **and** the full test suite — previously the ML stack was installed only ad hoc in a local venv
+
+### Test result
+`python -m pytest tests/` → **587 passed** (ml 295 · agent 237 · backend 55)
+
+The previously uncollectable `tests/ml/test_explainability.py` (42 tests) and `tests/ml/test_model_trainer.py` (52 tests) are now part of the passing suite.
+
+### Next steps (Person 2)
+1. **Step 12b — `ml/model_evaluator.py`:** load the 6 saved models, compare accuracy / F1 / AUC-ROC / cross-validation, produce an evaluation report
+2. **Wire trained models into live inference:** the backend currently uses only the rule-based risk engine; the 6 trained models in `data/models/` are not yet used in production scoring
+
+---
+
+## Step 12b: Model Evaluator (Person 2)
+**Date:** 2026-09-03
+**Status:** ✅ Complete — 59 tests passing (full suite 646/646)
+
+### What was built
+- `ml/model_evaluator.py` (496 lines) — head-to-head comparison of the 6 saved models
+- `tests/ml/test_model_evaluator.py` (396 lines) — 59 tests
+- `documents/MODEL_EVALUATION.md` — generated evaluation report artifact
+
+### Module overview
+`evaluate_saved_models()` loads the **saved production artifacts** from `data/models/` (not fresh fits) and evaluates each on a held-out test set, using the same split protocol and seed defaults as `train_all_models()` so metrics are directly comparable with the training report.
+
+Metrics per model × target:
+- Classification: accuracy, precision, recall, F1, ROC-AUC
+- Probabilistic calibration: log loss, Brier score
+- Stability: 5-fold cross-validated accuracy (mean ± std) of a cloned estimator
+- Confusion counts (TP/TN/FP/FN) on the held-out set
+
+`EvaluationReport` provides `ranking(target, metric)`, `best(target, metric)`, a console `summary()`, and a `markdown()` document. `feature_importance(model, target, top_n)` ranks features by tree importance. `write_markdown_report(report, path=None)` writes the full artifact (default `documents/MODEL_EVALUATION.md`) including the winning models' top features.
+
+Supports real-data evaluation: pass a `build_dataset()` DataFrame to `evaluate_saved_models(df=...)`.
+
+### Evaluation result (synthetic data, 300 samples, seed 42)
+- Winner both targets: `random_forest` (ROC-AUC 1.000)
+- All 3 algorithms reach perfect metrics — **expected**: the synthetic generator derives labels as deterministic functions of the 60 features, so this only confirms the algorithms learn the generator's rules. The generated report carries an explicit caveat; re-evaluate on real labeled data before trusting any model in production decisions.
+
+### How to run
+```bash
+python -m pytest tests/ml/test_model_evaluator.py -v
+
+# Regenerate the evaluation report:
+python -c "from ml.model_evaluator import evaluate_saved_models, write_markdown_report; write_markdown_report(evaluate_saved_models())"
+```
+
+### Next for Person 2
+Wire the trained models into live inference (blend model predictions with the rule-based risk engine inside `ml/assessment.py`, so Person 3's backend needs no changes).
 
 ---
 

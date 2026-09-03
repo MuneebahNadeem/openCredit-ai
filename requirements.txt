@@ -1,6 +1,8 @@
-# Runtime dependencies for the OpenCredit AI backend (Person 3).
-# The agent (Person 1) and ML (Person 2) packages are part of this repo.
+# Runtime dependencies for the OpenCredit AI project.
+# The backend (Person 3), agent (Person 1), and ML (Person 2) packages
+# are all part of this repo and covered by this file.
 
+# Backend / API (Person 3)
 fastapi==0.141.1
 uvicorn==0.52.0
 pydantic==2.13.4
@@ -9,12 +11,20 @@ python-dotenv==1.2.2
 openai>=1.0.0
 python-multipart
 
-# Document processing
+# Document processing (Person 3)
 pypdf
 python-docx
 openpyxl
 pillow
 pytesseract
+
+# ML / risk assessment stack (Person 2)
+# Verified on Python 3.14 — full suite 587/587 passing
+numpy==2.5.2
+pandas==3.0.5
+scikit-learn==1.9.0
+xgboost==3.4.1
+shap==0.52.0
 
 # Development / testing
 pytest==9.1.1
