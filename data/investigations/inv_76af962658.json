@@ -1,0 +1,85 @@
+{
+  "id": "inv_76af962658",
+  "created_at": "2026-09-04T11:35:00.026625+00:00",
+  "started_at": "2026-09-04T11:35:00.028030+00:00",
+  "completed_at": "2026-09-04T11:35:02.139741+00:00",
+  "status": "completed",
+  "phase_label": "Investigation complete",
+  "error": null,
+  "saved": false,
+  "trustworthiness_override": false,
+  "business": {
+    "name": "Blissful",
+    "location": null,
+    "category": null,
+    "website": "https://shopblissfulbeauty.com/",
+    "social_links": [],
+    "marketplace_links": [],
+    "description": null,
+    "additional_info": null
+  },
+  "documents": [],
+  "result": {
+    "status": "complete",
+    "searches_performed": 0,
+    "sources_examined": 1,
+    "investigated_at": "2026-09-04T11:35:00.873382Z",
+    "evidence": [],
+    "features": [],
+    "trustworthiness": {
+      "level": "insufficient_evidence",
+      "score": null,
+      "evidence_count": 0,
+      "explanation": "No evidence was collected during the investigation."
+    },
+    "business_potential": {
+      "level": "insufficient_evidence",
+      "score": null,
+      "evidence_count": 0,
+      "explanation": "No evidence was collected during the investigation."
+    },
+    "positive_signals": [],
+    "risk_signals": [],
+    "missing_information": [
+      "SECP/business registration not found",
+      "No customer reviews found",
+      "Social media presence not verified"
+    ],
+    "sources": [
+      "https://shopblissfulbeauty.com"
+    ],
+    "justification": "Insufficient evidence to assess trustworthiness. insufficient evidence for business potential. based on 0 evidence items (0 reliable).",
+    "agent_status": "complete",
+    "recommendation": "insufficient_data",
+    "analysis_context": {
+      "credibility": {
+        "source_reliability_score": 0.0,
+        "evidence_quality_score": 0.0,
+        "confidence_score": 0.0,
+        "reliable_ratio": 0.0,
+        "source_diversity_score": 0.0,
+        "corroboration_score": 0.0,
+        "evidence_depth_score": 0.0,
+        "overall_score": 0.0,
+        "level": "insufficient_evidence"
+      },
+      "sentiment": {
+        "positive": 0.0,
+        "negative": 0.0,
+        "neutral": 1.0,
+        "compound": 0.0,
+        "label": "neutral"
+      }
+    },
+    "sources_detail": [
+      {
+        "url": "https://shopblissfulbeauty.com",
+        "name": "shopblissfulbeauty.com",
+        "reliability": "unknown",
+        "evidence_count": 0,
+        "evidence_fields": [],
+        "type": "web"
+      }
+    ]
+  }
+}

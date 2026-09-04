@@ -1,0 +1,23 @@
+{
+  "id": "inv_db34384ab8",
+  "created_at": "2026-09-04T11:26:00.043920+00:00",
+  "started_at": "2026-09-04T11:26:00.062663+00:00",
+  "completed_at": "2026-09-04T11:26:02.543142+00:00",
+  "status": "failed",
+  "phase_label": "Investigation failed",
+  "error": "Investigation completed, but the risk assessment could not be completed.",
+  "saved": false,
+  "trustworthiness_override": false,
+  "business": {
+    "name": "Zaytra Fashion",
+    "location": null,
+    "category": null,
+    "website": null,
+    "social_links": [],
+    "marketplace_links": [],
+    "description": null,
+    "additional_info": null
+  },
+  "documents": [],
+  "result": null
+}

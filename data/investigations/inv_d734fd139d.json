@@ -1,0 +1,35 @@
+{
+  "id": "inv_d734fd139d",
+  "created_at": "2026-09-04T11:27:46.329962+00:00",
+  "started_at": "2026-09-04T11:27:46.341210+00:00",
+  "completed_at": "2026-09-04T11:27:50.397793+00:00",
+  "status": "failed",
+  "phase_label": "Investigation failed",
+  "error": "Investigation completed, but the risk assessment could not be completed.",
+  "saved": false,
+  "trustworthiness_override": false,
+  "business": {
+    "name": "Blissful",
+    "location": null,
+    "category": null,
+    "website": "https://shopblissfulbeauty.com/",
+    "social_links": [],
+    "marketplace_links": [],
+    "description": null,
+    "additional_info": null
+  },
+  "documents": [
+    {
+      "filename": "Screenshot_2026-09-04_161049.png",
+      "stored_name": "Screenshot_2026-09-04_161049.png",
+      "stored_path": "data\\documents\\inv_d734fd139d\\Screenshot_2026-09-04_161049.png",
+      "content_type": "image/png",
+      "size": 1798643,
+      "sha256": "c9cbb6d7b6e2b36e56da59e27398bc660d37b94d6cf62539f99bb95626a83b5a",
+      "extracted": true,
+      "extracted_text": "Alibaba X Alkhidmat\nAi Hackathon 2026\n\nOpen |\nCredit.al\n\nYour One Step business Investigator\n\nMaheen Fatima\nEsha Ashfaq\nMuneebah Nadeem\n\n",
+      "extracted_at": "2026-09-04T11:27:50.391850+00:00"
+    }
+  ],
+  "result": null
+}
