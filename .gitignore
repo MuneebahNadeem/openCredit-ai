@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Environment / secrets
+.env
+
+# Frontend build output (built on the deploy server)
+frontend/dist/
+
+# Runtime data — keep data/models/ (ML artifacts ship with the repo)
+data/investigations/
+data/documents/
+
+# OS junk
+.DS_Store
+Thumbs.db

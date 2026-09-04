@@ -8,17 +8,22 @@ Run from the repository root:
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from backend.app.api.routes import router
 from backend.app.config import get_settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("opencredit.app")
+
+# Built frontend (output of `npm run build` in frontend/). Absent during
+# backend-only development — the API runs fine without it.
+_DIST_DIR = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 
 def create_app() -> FastAPI:
@@ -42,6 +47,18 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(router)
+
+    # Serve the built frontend from the same origin as the API so a single
+    # deployment covers the whole app (no CORS, no separate static host).
+    if _DIST_DIR.is_dir():
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def spa(full_path: str):
+            dist_root = _DIST_DIR.resolve()
+            candidate = (_DIST_DIR / full_path).resolve()
+            if full_path and candidate.is_file() and dist_root in candidate.parents:
+                return FileResponse(candidate)
+            return FileResponse(_DIST_DIR / "index.html")
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
